@@ -4,7 +4,169 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OverApp Command Center</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.tailwindcss.com">
+// === SYSTEM TAB ===
+async function refreshProcesses() {
+    try {
+        const res = await fetch('http://127.0.0.1:3011/api/processes');
+        const data = await res.json();
+        if (!data.success) return;
+        const { processes, ports, resources } = data.data;
+        
+        // System resources
+        const resDiv = document.getElementById('system-resources');
+        if (resources.memory) {
+            resDiv.innerHTML = `
+                <div class="flex items-center justify-between"><span class="text-slate-400">Memory</span><span class="font-mono">${resources.memory.usedGB} / ${resources.memory.totalGB} GB (${resources.memory.usagePct}%)</span></div>
+                <div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-emerald-500 h-2 rounded-full" style="width:${resources.memory.usagePct}%"></div></div>
+                <div class="flex items-center justify-between mt-2"><span class="text-slate-400">Disk</span><span class="font-mono">${resources.disk.used || 'N/A'} / ${resources.disk.total || 'N/A'} (${resources.disk.pct || 'N/A'})</span></div>
+                <div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-blue-500 h-2 rounded-full" style="width:${parseFloat(resources.disk.pct || '0').toFixed(0)}%"></div></div>
+            `;
+        }
+        
+        // Ports
+        const portsDiv = document.getElementById('listening-ports');
+        portsDiv.innerHTML = ports.map(p => `<div class="flex items-center justify-between p-2 bg-slate-800 rounded"><span class="font-mono text-slate-300">${p.port}</span><span class="text-xs text-slate-400">${p.process} (PID: ${p.pid})</span></div>`).join('') || 'No listening ports';
+        
+        // Process table
+        const tableBody = document.getElementById('processTable');
+        const topProcesses = processes.slice(0, 30);
+        tableBody.innerHTML = topProcesses.map(p => `
+            <tr class="border-b border-slate-800 hover:bg-slate-800/50">
+                <td class="p-2 font-mono text-slate-300">${p.pid}</td>
+                <td class="p-2 text-slate-400">${p.user}</td>
+                <td class="p-2 ${parseFloat(p.cpu) > 50 ? 'text-red-400 font-bold' : 'text-slate-300'}">${p.cpu}%</td>
+                <td class="p-2 text-slate-300">${p.mem}%</td>
+                <td class="p-2 font-mono text-xs text-slate-300 max-w-md truncate" title="${p.command}">${p.command.substring(0, 60)}</td>
+                <td class="p-2"><button onclick="killProc('${p.pid}')" class="px-2 py-0.5 bg-red-900/50 hover:bg-red-800 text-red-300 rounded text-xs">Kill</button></td>
+            </tr>
+        `).join('');
+    } catch(e) {}
+}
+
+async function killProc(pid) {
+    if (!confirm(`Kill process ${pid}?`)) return;
+    try {
+        const res = await fetch('http://127.0.0.1:3011/api/processes/kill', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({pid}) });
+        const data = await res.json();
+        if (data.success) refreshProcesses();
+    } catch(e) {}
+}
+
+// === MCP TAB ===
+async function refreshMcp() {
+    try {
+        const [mcpRes, hooksRes] = await Promise.all([
+            fetch('http://127.0.0.1:3011/api/mcp'),
+            fetch('http://127.0.0.1:3011/api/hooks')
+        ]);
+        const mcpData = await mcpRes.json();
+        const hooksData = await hooksRes.json();
+        if (!mcpData.success) return;
+        document.getElementById('mcp-count').textContent = mcpData.data.count;
+        
+        const serversDiv = document.getElementById('mcp-servers');
+        serversDiv.innerHTML = mcpData.data.servers.map(s => `
+            <div class="p-3 bg-slate-800 rounded-lg border border-slate-700">
+                <div class="flex items-center justify-between mb-1">
+                    <span class="font-semibold text-slate-200">${s.name}</span>
+                    <span class="px-1.5 py-0.5 ${s.type === 'http' ? 'bg-blue-900 text-blue-300' : 'bg-emerald-900 text-emerald-300'} rounded text-xs">${s.type}</span>
+                </div>
+                <div class="text-xs text-slate-400 font-mono mb-1">${s.command} ${(s.args||[]).join(' ')}</div>
+                ${s.description ? `<div class="text-xs text-slate-500">${s.description.substring(0, 80)}...</div>` : ''}
+                ${s.hasEnv ? '<span class="text-xs text-amber-400">⚠ Has env vars</span>' : ''}
+            </div>
+        `).join('') || 'No MCP servers configured';
+        
+        const hooksDiv = document.getElementById('ecc-hooks');
+        const hooks = hooksData.success ? hooksData.data : [];
+        hooksDiv.innerHTML = hooks.map(h => `
+            <div class="p-2 bg-slate-800 rounded text-xs">
+                <span class="px-1.5 py-0.5 bg-purple-900 text-purple-300 rounded">${h.matcher}</span>
+                <span class="text-slate-400 font-mono ml-1">${h.command.substring(0, 50)}...</span>
+            </div>
+        `).join('') || 'No ECC hooks configured';
+    } catch(e) {}
+}
+
+// === OPENCODE TAB ===
+async function refreshOpenCode() {
+    try {
+        const [configRes, agentsRes, cmdsRes, sessionsRes, logsRes] = await Promise.all([
+            fetch('http://127.0.0.1:3011/api/opencode/config'),
+            fetch('http://127.0.0.1:3011/api/opencode/agents'),
+            fetch('http://127.0.0.1:3011/api/opencode/commands'),
+            fetch('http://127.0.0.1:3011/api/opencode/sessions'),
+            fetch('http://127.0.0.1:3011/api/opencode/logs'),
+        ]);
+        
+        const config = await configRes.json();
+        if (config.success) {
+            const d = config.data;
+            const cfgDiv = document.getElementById('opencode-config');
+            cfgDiv.innerHTML = `
+                <div class="flex items-center justify-between p-3 bg-slate-800 rounded"><span class="text-slate-400">Active Model</span><span class="font-mono text-emerald-400">${d.model}</span></div>
+                <div class="flex items-center justify-between p-3 bg-slate-800 rounded"><span class="text-slate-400">Provider</span><span class="font-mono text-slate-200">${d.provider}</span></div>
+                <div class="flex items-center justify-between p-3 bg-slate-800 rounded"><span class="text-slate-400">Default Agent</span><span class="font-mono text-slate-200">${d.defaultAgent}</span></div>
+                <div class="flex items-center justify-between p-3 bg-slate-800 rounded"><span class="text-slate-400">Agents</span><span class="font-mono text-slate-200">${d.agents.length}</span></div>
+                <div class="flex items-center justify-between p-3 bg-slate-800 rounded"><span class="text-slate-400">Commands</span><span class="font-mono text-slate-200">${d.commands.length}</span></div>
+                <div class="flex items-center justify-between p-3 bg-slate-800 rounded"><span class="text-slate-400">Skill Paths</span><span class="font-mono text-slate-200">${d.skillsPaths.join(', ')}</span></div>
+            `;
+        }
+        
+        const agents = await agentsRes.json();
+        if (agents.success) {
+            document.getElementById('opencode-agents').innerHTML = agents.data.map(a => `
+                <div class="p-2 bg-slate-800 rounded"><span class="font-semibold text-slate-200">${a.name}</span> <span class="text-xs text-slate-400">(${a.files.length} files)</span></div>
+            `).join('') || 'No agents';
+        }
+        
+        const cmds = await cmdsRes.json();
+        if (cmds.success) {
+            document.getElementById('opencode-commands').innerHTML = cmds.data.map(c => `
+                <div class="p-1.5 bg-slate-800 rounded text-xs"><span class="text-slate-300 font-mono">${c.name}</span> <span class="text-slate-500">${c.title}</span></div>
+            `).join('') || 'No commands';
+        }
+        
+        const sessions = await sessionsRes.json();
+        if (sessions.success) {
+            document.getElementById('opencode-sessions').innerHTML = sessions.data.map(s => `
+                <div class="flex items-center justify-between p-2 bg-slate-800 rounded"><span class="font-mono text-slate-300 text-xs">${s.file}</span><span class="text-slate-500">${(s.size/1024).toFixed(1)}KB</span></div>
+            `).join('') || 'No sessions found';
+        }
+        
+        const logs = await logsRes.json();
+        if (logs.success) {
+            document.getElementById('opencode-logs').innerHTML = logs.data.map(l => `
+                <div class="p-3 bg-slate-800 rounded border border-slate-700">
+                    <div class="flex items-center justify-between mb-1"><span class="font-mono text-slate-300 text-xs">${l.file}</span><span class="text-slate-500 text-xs">${(l.size/1024).toFixed(1)}KB, ${l.lines} lines</span></div>
+                    <pre class="text-xs text-slate-500 font-mono overflow-x-auto max-h-20">${l.preview.substring(0, 500)}</pre>
+                </div>
+            `).join('') || 'No logs found';
+        }
+    } catch(e) {}
+}
+
+// Wire tab buttons for new tabs
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        if (btn.dataset.target === 'tab-system') refreshProcesses();
+        if (btn.dataset.target === 'tab-mcp') refreshMcp();
+        if (btn.dataset.target === 'tab-opencode') refreshOpenCode();
+    });
+});
+
+// Auto-refresh system tab every 5s
+let activeTab = 'tab-overview';
+const origTabClick = () => {};
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => { activeTab = btn.dataset.target; });
+});
+setInterval(() => {
+    if (activeTab === 'tab-system') refreshProcesses();
+}, 5000);
+
+</script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script>
@@ -100,7 +262,10 @@
         <button class="tab-btn px-4 py-3 font-medium text-sm text-slate-400 hover:text-slate-200 border-b-2 border-transparent hover:border-slate-600 flex items-center gap-2 whitespace-nowrap transition-colors" data-target="tab-agent"><i data-lucide="git-merge" class="w-4 h-4"></i> Agent Loop</button>
         <button class="tab-btn px-4 py-3 font-medium text-sm text-slate-400 hover:text-slate-200 border-b-2 border-transparent hover:border-slate-600 flex items-center gap-2 whitespace-nowrap transition-colors" data-target="tab-context"><i data-lucide="database" class="w-4 h-4"></i> Context Lab</button>
         <button class="tab-btn px-4 py-3 font-medium text-sm text-slate-400 hover:text-slate-200 border-b-2 border-transparent hover:border-slate-600 flex items-center gap-2 whitespace-nowrap transition-colors" data-target="tab-mode"><i data-lucide="sliders" class="w-4 h-4"></i> LLM Mode</button>
-    </nav>
+            <button class="tab-btn px-4 py-3 font-medium text-sm text-slate-400 hover:text-slate-200 border-b-2 border-transparent hover:border-slate-600 flex items-center gap-2 whitespace-nowrap transition-colors" data-target="tab-system"><i data-lucide="server" class="w-4 h-4"></i> System</button>
+        <button class="tab-btn px-4 py-3 font-medium text-sm text-slate-400 hover:text-slate-200 border-b-2 border-transparent hover:border-slate-600 flex items-center gap-2 whitespace-nowrap transition-colors" data-target="tab-mcp"><i data-lucide="plug" class="w-4 h-4"></i> MCP & Plugins</button>
+        <button class="tab-btn px-4 py-3 font-medium text-sm text-slate-400 hover:text-slate-200 border-b-2 border-transparent hover:border-slate-600 flex items-center gap-2 whitespace-nowrap transition-colors" data-target="tab-opencode"><i data-lucide="terminal" class="w-4 h-4"></i> OpenCode</button>
+</nav>
 
     <div class="relative w-full flex-1">
         <div id="tab-overview" class="tab-content block space-y-6">
@@ -256,7 +421,79 @@
                     <div class="bg-slate-950 rounded-lg p-4 border border-slate-800 text-sm"><div class="flex items-center gap-2 text-red-400 mb-2"><i data-lucide="shield-off" class="w-4 h-4"></i> Destructive Block</div><p class="text-xs text-slate-400">push --force, reset --hard, rm -rf blocked</p></div>
                 </div>
             </div>
+        
+        <div id="tab-system" class="tab-content hidden space-y-6">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><i data-lucide="activity" class="w-5 h-5 text-emerald-400"></i> System Resources</h2>
+                    <div id="system-resources" class="space-y-3">Loading...</div>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><i data-lucide="radio" class="w-5 h-5 text-amber-400"></i> Listening Ports</h2>
+                    <div id="listening-ports" class="space-y-2 text-sm">Loading...</div>
+                </div>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-semibold flex items-center gap-2"><i data-lucide="x-circle" class="w-5 h-5 text-red-400"></i> Running Processes (sorted by CPU)</h2>
+                    <button onclick="refreshProcesses()" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg transition-colors">Refresh</button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs">
+                        <thead><tr class="border-b border-slate-800"><th class="p-2 text-slate-400">PID</th><th class="p-2 text-slate-400">USER</th><th class="p-2 text-slate-400">CPU%</th><th class="p-2 text-slate-400">MEM%</th><th class="p-2 text-slate-400">COMMAND</th><th class="p-2"></th></tr></thead>
+                        <tbody id="processTable"></tbody>
+                    </table>
+                </div>
+            </div>
         </div>
+
+        <div id="tab-mcp" class="tab-content hidden space-y-6">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-lg font-semibold flex items-center gap-2"><i data-lucide="plug" class="w-5 h-5 text-purple-400"></i> MCP Servers (<span id="mcp-count">0</span> configured)</h2>
+                        <button onclick="refreshMcp()" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg transition-colors">Refresh</button>
+                    </div>
+                    <div id="mcp-servers" class="space-y-2 max-h-96 overflow-y-auto text-sm">Loading...</div>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><i data-lucide="lock" class="w-5 h-5 text-blue-400"></i> ECC Hooks</h2>
+                    <div id="ecc-hooks" class="space-y-2 text-sm">Loading...</div>
+                </div>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><i data-lucide="puzzle" class="w-5 h-5 text-amber-400"></i> Plugins</h2>
+                <div id="plugins-list" class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">Loading...</div>
+            </div>
+        </div>
+
+        <div id="tab-opencode" class="tab-content hidden space-y-6">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><i data-lucide="settings" class="w-5 h-5 text-emerald-400"></i> OpenCode Configuration</h2>
+                    <div id="opencode-config" class="space-y-3 text-sm">Loading...</div>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><i data-lucide="robot" class="w-5 h-5 text-blue-400"></i> Agents & Commands</h2>
+                    <div id="opencode-agents" class="space-y-2 text-sm mb-4">Loading...</div>
+                    <div id="opencode-commands" class="space-y-1 text-xs max-h-40 overflow-y-auto">Loading...</div>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><i data-lucide="file-text" class="w-5 h-5 text-amber-400"></i> Sessions</h2>
+                    <div id="opencode-sessions" class="space-y-2 text-sm">Loading...</div>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-lg font-semibold flex items-center gap-2"><i data-lucide="scroll" class="w-5 h-5 text-red-400"></i> OpenCode Logs</h2>
+                        <button onclick="refreshLogs()" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg transition-colors">Refresh</button>
+                    </div>
+                    <div id="opencode-logs" class="space-y-2 max-h-80 overflow-y-auto text-sm">Loading...</div>
+                </div>
+            </div>
+        </div>
+</div>
     </div>
 </main>
 
