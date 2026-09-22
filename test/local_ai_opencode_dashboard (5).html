@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agentic AI & OpenCode Dashboard</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        slate: {
+                            750: '#293548',
+                            850: '#151f32',
+                            950: '#0a0f18',
+                        }
+                    },
+                    animation: {
+                        'pulse-fast': 'pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        /* Custom Scrollbars */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0a0f18; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569; 
+        }
+
+        /* Glowing Accents */
+        .glow-emerald { box-shadow: 0 0 15px rgba(16, 185, 129, 0.2); }
+        .glow-blue { box-shadow: 0 0 15px rgba(59, 130, 246, 0.2); }
+        .glow-amber { box-shadow: 0 0 15px rgba(245, 158, 11, 0.2); }
+        .glow-slate { box-shadow: 0 0 15px rgba(100, 116, 139, 0.2); }
+
+        /* Terminal Syntax Colors */
+        .log-time { color: #64748b; } /* slate-500 */
+        .log-info { color: #60a5fa; } /* blue-400 */
+        .log-success { color: #34d399; } /* emerald-400 */
+        .log-warn { color: #fbbf24; } /* amber-400 */
+        .log-error { color: #f87171; } /* red-400 */
+        .log-action { color: #c084fc; } /* purple-400 */
+
+        /* Range Slider Styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #10b981;
+            cursor: pointer;
+            margin-top: -6px;
+            box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #334155;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-200 font-sans min-h-screen flex flex-col antialiased">
+
+    <!-- Sticky Header -->
+    <header class="sticky top-0 z-50 bg-slate-900/80 backdrop-blur-md border-b border-slate-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <!-- Logo -->
+                <div class="flex items-center gap-3">
+                    <div class="p-2 bg-emerald-500/10 rounded-lg glow-emerald">
+                        <i data-lucide="cpu" class="w-6 h-6 text-emerald-400"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-bold bg-gradient-to-r from-emerald-400 to-blue-400 bg-clip-text text-transparent">AgenticOS</h1>
+                        <p class="text-xs text-slate-400 font-mono">Local OpenCode Interface</p>
+                    </div>
+                </div>
+
+                <!-- Global Controls -->
+                <div class="flex items-center gap-6">
+                    <div class="hidden md:flex items-center gap-4 text-sm font-mono text-slate-400 border-r border-slate-700 pr-6">
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="hard-drive" class="w-4 h-4 text-slate-500"></i>
+                            <span>Model: Llama-3-8B-Instruct-Q8</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="zap" class="w-4 h-4 text-slate-500"></i>
+                            <span>Backend: llama.cpp</span>
+                        </div>
+                    </div>
+                    <!-- Connection Toggle -->
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="connectionToggle" class="sr-only peer" checked>
+                        <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                        <span class="ml-3 text-sm font-medium font-mono text-slate-300" id="connectionText">ONLINE</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Active Task Banner -->
+        <div class="bg-slate-800/50 border-t border-slate-800 border-b border-slate-950 px-4 py-2">
+            <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center gap-4 text-sm font-mono text-slate-300">
+                <div class="flex items-center gap-2 font-semibold text-emerald-400 shrink-0">
+                    <i data-lucide="activity" class="w-4 h-4"></i>
+                    <span>Active Routine:</span>
+                </div>
+                <div class="flex-1 w-full flex items-center justify-between text-xs sm:text-sm">
+                    <div class="flex items-center gap-2 task-step" data-step="1">
+                        <span class="step-indicator w-2 h-2 rounded-full bg-emerald-500 animate-pulse-fast glow-emerald"></span>
+                        <span class="step-text text-emerald-100">1. Planning</span>
+                    </div>
+                    <div class="h-px bg-slate-700 flex-1 mx-2"></div>
+                    <div class="flex items-center gap-2 task-step opacity-50" data-step="2">
+                        <span class="step-indicator w-2 h-2 rounded-full bg-slate-600"></span>
+                        <span class="step-text">2. Inspecting</span>
+                    </div>
+                    <div class="h-px bg-slate-700 flex-1 mx-2"></div>
+                    <div class="flex items-center gap-2 task-step opacity-50" data-step="3">
+                        <span class="step-indicator w-2 h-2 rounded-full bg-slate-600"></span>
+                        <span class="step-text">3. Coding</span>
+                    </div>
+                    <div class="h-px bg-slate-700 flex-1 mx-2"></div>
+                    <div class="flex items-center gap-2 task-step opacity-50" data-step="4">
+                        <span class="step-indicator w-2 h-2 rounded-full bg-slate-600"></span>
+                        <span class="step-text">4. Verifying</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col gap-6">
+        
+        <!-- Tabs Navigation -->
+        <nav class="flex overflow-x-auto border-b border-slate-800 hide-scrollbar pb-px">
+            <button class="tab-btn active px-4 py-3 font-medium text-sm text-emerald-400 border-b-2 border-emerald-500 flex items-center gap-2 whitespace-nowrap" data-target="tab-overview">
+                <i data-lucide="layout-dashboard" class="w-4 h-4"></i> Overview
+            </button>
+            <button class="tab-btn px-4 py-3 font-medium text-sm text-slate-400 hover:text-slate-200 border-b-2 border-transparent hover:border-slate-600 flex items-center gap-2 whitespace-nowrap transition-colors" data-target="tab-agent">
+                <i data-lucide="git-merge" class="w-4 h-4"></i> Agent Loop
+            </button>
+            <button class="tab-btn px-4 py-3 font-medium text-sm text-slate-400 hover:text-slate-200 border-b-2 border-transparent hover:border-slate-600 flex items-center gap-2 whitespace-nowrap transition-colors" data-target="tab-context">
+                <i data-lucide="database" class="w-4 h-4"></i> Context Lab
+            </button>
+            <button class="tab-btn px-4 py-3 font-medium text-sm text-slate-400 hover:text-slate-200 border-b-2 border-transparent hover:border-slate-600 flex items-center gap-2 whitespace-nowrap transition-colors" data-target="tab-roi">
+                <i data-lucide="calculator" class="w-4 h-4"></i> ROI Calculator
+            </button>
+        </nav>
+
+        <!-- Tab Content Containers -->
+        <div class="relative w-full flex-1">
+            
+            <!-- OVERVIEW TAB -->
+            <div id="tab-overview" class="tab-content block space-y-6">
+                <!-- Metrics Grid -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <!-- Metric 1 -->
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-medium text-slate-400">Generation Speed</span>
+                            <i data-lucide="zap" class="w-4 h-4 text-amber-400"></i>
+                        </div>
+                        <div class="flex items-end gap-2">
+                            <span class="text-3xl font-bold text-slate-100" id="metric-tps">42.5</span>
+                            <span class="text-sm font-mono text-slate-500 mb-1">t/s</span>
+                        </div>
+                        <div class="mt-2 text-xs text-emerald-400 flex items-center gap-1">
+                            <i data-lucide="trending-up" class="w-3 h-3"></i> +1.2% from avg
+                        </div>
+                    </div>
+                    <!-- Metric 2 -->
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-medium text-slate-400">VRAM Allocation</span>
+                            <i data-lucide="memory-stick" class="w-4 h-4 text-blue-400"></i>
+                        </div>
+                        <div class="flex items-end gap-2">
+                            <span class="text-3xl font-bold text-slate-100" id="metric-vram">7.8</span>
+                            <span class="text-sm font-mono text-slate-500 mb-1">/ 12 GB</span>
+                        </div>
+                        <div class="mt-2 w-full bg-slate-800 rounded-full h-1.5">
+                            <div class="bg-blue-500 h-1.5 rounded-full" style="width: 65%"></div>
+                        </div>
+                    </div>
+                    <!-- Metric 3 -->
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-medium text-slate-400">Active Context</span>
+                            <i data-lucide="layers" class="w-4 h-4 text-purple-400"></i>
+                        </div>
+                        <div class="flex items-end gap-2">
+                            <span class="text-3xl font-bold text-slate-100" id="metric-context">4.2k</span>
+                            <span class="text-sm font-mono text-slate-500 mb-1">/ 8k tok</span>
+                        </div>
+                        <div class="mt-2 text-xs text-purple-400 flex items-center gap-1">
+                            <i data-lucide="check-circle" class="w-3 h-3"></i> Optimized
+                        </div>
+                    </div>
+                    <!-- Metric 4 -->
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-medium text-slate-400">Session Savings</span>
+                            <i data-lucide="piggy-bank" class="w-4 h-4 text-emerald-400"></i>
+                        </div>
+                        <div class="flex items-end gap-2">
+                            <span class="text-3xl font-bold text-slate-100" id="metric-savings">$2.45</span>
+                        </div>
+                        <div class="mt-2 text-xs text-slate-500 font-mono">
+                            vs. Cloud API equivalent
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[500px]">
+                    <!-- Chart Section -->
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg flex flex-col">
+                        <div class="flex items-center justify-between mb-4">
+                            <h2 class="text-lg font-semibold flex items-center gap-2">
+                                <i data-lucide="activity-square" class="w-5 h-5 text-blue-400"></i> Performance Telemetry
+                            </h2>
+                            <div class="flex gap-2">
+                                <span class="flex items-center gap-1 text-xs text-slate-400"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> TPS</span>
+                                <span class="flex items-center gap-1 text-xs text-slate-400"><span class="w-2 h-2 rounded-full bg-blue-500"></span> VRAM</span>
+                            </div>
+                        </div>
+                        <div class="relative flex-1 w-full">
+                            <canvas id="performanceChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Terminal Section -->
+                    <div class="bg-[#0a0f18] border border-slate-700 rounded-xl shadow-lg flex flex-col overflow-hidden relative glow-slate">
+                        <div class="bg-slate-800/80 backdrop-blur border-b border-slate-700 px-4 py-2 flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <i data-lucide="terminal-square" class="w-4 h-4 text-slate-400"></i>
+                                <span class="text-sm font-mono text-slate-300">agent-core.log</span>
+                            </div>
+                            <label class="flex items-center gap-2 cursor-pointer text-xs font-mono text-slate-400 hover:text-slate-200">
+                                <input type="checkbox" id="autoScrollToggle" checked class="rounded border-slate-600 bg-slate-800 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-slate-900">
+                                Auto-scroll
+                            </label>
+                        </div>
+                        <div id="terminalOutput" class="flex-1 p-4 font-mono text-sm overflow-y-auto whitespace-pre-wrap break-words">
+                            <!-- Logs generated by JS -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AGENT LOOP TAB -->
+            <div id="tab-agent" class="tab-content hidden space-y-6">
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                    <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+                        <i data-lucide="git-branch-plus" class="w-5 h-5 text-purple-400"></i>
+                        Autonomous ReAct Loop Architecture
+                    </h2>
+                    <p class="text-slate-400 text-sm mb-8">Visualization of the Reasoning and Acting pattern utilized by the local LLM agent to iteratively solve coding tasks.</p>
+                    
+                    <!-- ReAct Flow -->
+                    <div class="flex flex-col md:flex-row items-center justify-center gap-4 text-center">
+                        <!-- User Request -->
+                        <div class="bg-slate-800 border border-slate-700 p-4 rounded-lg w-full md:w-48 relative">
+                            <i data-lucide="user" class="w-8 h-8 text-blue-400 mx-auto mb-2"></i>
+                            <h3 class="font-semibold text-slate-200">User Prompt</h3>
+                            <p class="text-xs text-slate-500 mt-1">Initial goal setup</p>
+                        </div>
+                        <i data-lucide="arrow-right" class="w-6 h-6 text-slate-600 hidden md:block"></i>
+                        <i data-lucide="arrow-down" class="w-6 h-6 text-slate-600 block md:hidden"></i>
+                        
+                        <!-- Core Loop -->
+                        <div class="border-2 border-dashed border-emerald-500/50 rounded-xl p-4 flex flex-col md:flex-row gap-4 relative bg-emerald-500/5">
+                            <span class="absolute -top-3 left-4 bg-slate-900 px-2 text-xs font-mono text-emerald-400 border border-emerald-500/50 rounded">WHILE !RESOLVED</span>
+                            
+                            <div class="bg-slate-800 border border-slate-700 p-4 rounded-lg w-full md:w-40 z-10 hover:border-emerald-500 transition-colors">
+                                <i data-lucide="brain-circuit" class="w-8 h-8 text-emerald-400 mx-auto mb-2"></i>
+                                <h3 class="font-semibold text-slate-200">Thought</h3>
+                                <p class="text-xs text-slate-500 mt-1">LLM reasoning</p>
+                            </div>
+                            <i data-lucide="arrow-right" class="w-6 h-6 text-slate-500 self-center hidden md:block"></i>
+                            <i data-lucide="arrow-down" class="w-6 h-6 text-slate-500 self-center block md:hidden"></i>
+                            
+                            <div class="bg-slate-800 border border-slate-700 p-4 rounded-lg w-full md:w-40 z-10 hover:border-amber-400 transition-colors">
+                                <i data-lucide="wrench" class="w-8 h-8 text-amber-400 mx-auto mb-2"></i>
+                                <h3 class="font-semibold text-slate-200">Action</h3>
+                                <p class="text-xs text-slate-500 mt-1">Tool execution</p>
+                            </div>
+                            <i data-lucide="arrow-right" class="w-6 h-6 text-slate-500 self-center hidden md:block"></i>
+                            <i data-lucide="arrow-down" class="w-6 h-6 text-slate-500 self-center block md:hidden"></i>
+                            
+                            <div class="bg-slate-800 border border-slate-700 p-4 rounded-lg w-full md:w-40 z-10 hover:border-blue-400 transition-colors">
+                                <i data-lucide="eye" class="w-8 h-8 text-blue-400 mx-auto mb-2"></i>
+                                <h3 class="font-semibold text-slate-200">Observation</h3>
+                                <p class="text-xs text-slate-500 mt-1">Parse result</p>
+                            </div>
+                        </div>
+                        
+                        <i data-lucide="arrow-right" class="w-6 h-6 text-slate-600 hidden md:block"></i>
+                        <i data-lucide="arrow-down" class="w-6 h-6 text-slate-600 block md:hidden"></i>
+                        
+                        <!-- Output -->
+                        <div class="bg-slate-800 border border-slate-700 p-4 rounded-lg w-full md:w-48 relative">
+                            <i data-lucide="check-circle-2" class="w-8 h-8 text-emerald-400 mx-auto mb-2"></i>
+                            <h3 class="font-semibold text-slate-200">Final Answer</h3>
+                            <p class="text-xs text-slate-500 mt-1">Return to user</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Tool Usage Stats -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center gap-4">
+                        <div class="p-3 bg-blue-500/10 rounded-lg">
+                            <i data-lucide="file-search" class="w-6 h-6 text-blue-400"></i>
+                        </div>
+                        <div>
+                            <h4 class="text-sm font-medium text-slate-400">File Read Operations</h4>
+                            <p class="text-2xl font-bold">142</p>
+                        </div>
+                    </div>
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center gap-4">
+                        <div class="p-3 bg-amber-500/10 rounded-lg">
+                            <i data-lucide="file-edit" class="w-6 h-6 text-amber-400"></i>
+                        </div>
+                        <div>
+                            <h4 class="text-sm font-medium text-slate-400">File Edit Operations</h4>
+                            <p class="text-2xl font-bold">38</p>
+                        </div>
+                    </div>
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center gap-4">
+                        <div class="p-3 bg-slate-700/50 rounded-lg">
+                            <i data-lucide="terminal" class="w-6 h-6 text-slate-300"></i>
+                        </div>
+                        <div>
+                            <h4 class="text-sm font-medium text-slate-400">Bash Commands Executed</h4>
+                            <p class="text-2xl font-bold">15</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CONTEXT LAB TAB -->
+            <div id="tab-context" class="tab-content hidden space-y-6">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- KV Cache Calculator -->
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                        <h2 class="text-lg font-semibold mb-1 flex items-center gap-2">
+                            <i data-lucide="calculator" class="w-5 h-5 text-emerald-400"></i> KV Cache VRAM Calculator
+                        </h2>
+                        <p class="text-xs text-slate-500 mb-6">Estimate memory overhead for sustained context windows.</p>
+                        
+                        <div class="space-y-4">
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs text-slate-400 mb-1">Layers</label>
+                                    <input type="number" id="kv-layers" value="32" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-emerald-500">
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-slate-400 mb-1">Attention Heads</label>
+                                    <input type="number" id="kv-heads" value="32" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-emerald-500">
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs text-slate-400 mb-1">Head Dimension</label>
+                                    <input type="number" id="kv-dim" value="128" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-emerald-500">
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-slate-400 mb-1">Context Tokens</label>
+                                    <input type="number" id="kv-context" value="8192" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-emerald-500">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-slate-400 mb-1">Quantization Precision</label>
+                                <select id="kv-precision" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-emerald-500">
+                                    <option value="2">FP16 (2 Bytes)</option>
+                                    <option value="1">INT8 (1 Byte)</option>
+                                    <option value="0.5">INT4 (0.5 Bytes)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="mt-6 p-4 bg-slate-950 border border-slate-800 rounded-lg flex items-center justify-between">
+                            <span class="text-sm font-medium text-slate-400">Estimated KV Cache Size:</span>
+                            <span class="text-2xl font-bold text-emerald-400" id="kv-result">0.50 GB</span>
+                        </div>
+                    </div>
+
+                    <!-- Prompt Compressor -->
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg flex flex-col">
+                        <h2 class="text-lg font-semibold mb-1 flex items-center gap-2">
+                            <i data-lucide="minimize-2" class="w-5 h-5 text-blue-400"></i> Prompt Token Compressor (Simulated)
+                        </h2>
+                        <p class="text-xs text-slate-500 mb-4">Simulate heuristic compression on system prompts to save context.</p>
+                        
+                        <textarea id="prompt-input" class="w-full flex-1 min-h-[150px] bg-slate-800 border border-slate-700 rounded-lg p-3 text-sm font-mono text-slate-300 focus:outline-none focus:border-blue-500 resize-none mb-4" placeholder="Paste extensive system instructions or codebase context here..."></textarea>
+                        
+                        <div class="flex items-center gap-4 mb-4">
+                            <button id="btn-compress" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2 px-4 rounded transition-colors">
+                                Compress Context
+                            </button>
+                            <div class="flex items-center gap-2 text-xs">
+                                <span class="text-slate-400">Raw: <strong class="text-slate-200" id="raw-tokens">0</strong> tok</span>
+                                <i data-lucide="arrow-right" class="w-3 h-3 text-slate-600"></i>
+                                <span class="text-emerald-400">Opt: <strong id="opt-tokens">0</strong> tok</span>
+                            </div>
+                        </div>
+                        
+                        <div class="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
+                            <div id="compression-bar" class="h-full bg-blue-500 w-0 transition-all duration-500"></div>
+                        </div>
+                        <p class="text-[10px] text-slate-500 text-right mt-1" id="compression-ratio">0% saved</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ROI CALCULATOR TAB -->
+            <div id="tab-roi" class="tab-content hidden space-y-6">
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                    <h2 class="text-xl font-bold mb-2 flex items-center gap-2">
+                        <i data-lucide="piggy-bank" class="w-6 h-6 text-emerald-400"></i> Cloud vs Local AI Cost Comparison
+                    </h2>
+                    <p class="text-slate-400 text-sm mb-8">Calculate estimated monthly savings by running your autonomous coding workflows entirely on local hardware versus commercial Cloud APIs (based on approx $3/1M in, $15/1M out).</p>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                        <!-- Inputs -->
+                        <div class="space-y-8">
+                            <div>
+                                <div class="flex justify-between mb-1">
+                                    <label class="text-sm font-medium text-slate-300">Daily Prompts / Agent Loops</label>
+                                    <span class="text-sm font-mono text-emerald-400" id="val-prompts">500</span>
+                                </div>
+                                <input type="range" id="slider-prompts" min="10" max="2000" value="500" class="w-full">
+                            </div>
+                            
+                            <div>
+                                <div class="flex justify-between mb-1">
+                                    <label class="text-sm font-medium text-slate-300">Avg Input Context (Tokens per loop)</label>
+                                    <span class="text-sm font-mono text-emerald-400" id="val-input">8000</span>
+                                </div>
+                                <input type="range" id="slider-input" min="500" max="32000" step="500" value="8000" class="w-full">
+                            </div>
+
+                            <div>
+                                <div class="flex justify-between mb-1">
+                                    <label class="text-sm font-medium text-slate-300">Avg Output (Tokens per loop)</label>
+                                    <span class="text-sm font-mono text-emerald-400" id="val-output">1500</span>
+                                </div>
+                                <input type="range" id="slider-output" min="100" max="4000" step="100" value="1500" class="w-full">
+                            </div>
+                        </div>
+
+                        <!-- Results -->
+                        <div class="flex flex-col gap-4">
+                            <div class="bg-slate-950 border border-slate-800 rounded-lg p-5 flex items-center justify-between">
+                                <div>
+                                    <h4 class="text-slate-400 text-sm font-medium">Cloud API Cost (Est/Month)</h4>
+                                    <p class="text-xs text-slate-500 mt-1">Based on commercial standard rates</p>
+                                </div>
+                                <div class="text-3xl font-bold text-red-400 font-mono" id="cost-cloud">$0.00</div>
+                            </div>
+                            
+                            <div class="bg-slate-950 border border-slate-800 rounded-lg p-5 flex items-center justify-between">
+                                <div>
+                                    <h4 class="text-slate-400 text-sm font-medium">Local Cost (Est/Month)</h4>
+                                    <p class="text-xs text-slate-500 mt-1">Electricity (400W PC @ $0.15/kWh)</p>
+                                </div>
+                                <div class="text-3xl font-bold text-slate-300 font-mono" id="cost-local">$0.00</div>
+                            </div>
+                            
+                            <div class="bg-emerald-900/20 border border-emerald-500/50 rounded-lg p-5 flex items-center justify-between glow-emerald mt-2">
+                                <div>
+                                    <h4 class="text-emerald-400 font-bold">Net Monthly Savings</h4>
+                                    <p class="text-xs text-emerald-500/70 mt-1">By running open-source locally</p>
+                                </div>
+                                <div class="text-4xl font-bold text-emerald-400 font-mono" id="cost-savings">$0.00</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        // Initialize Lucide Icons
+        lucide.createIcons();
+
+        // --- TAB LOGIC ---
+        const tabBtns = document.querySelectorAll('.tab-btn');
+        const tabContents = document.querySelectorAll('.tab-content');
+
+        tabBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                // Remove active classes
+                tabBtns.forEach(b => {
+                    b.classList.remove('active', 'text-emerald-400', 'border-emerald-500');
+                    b.classList.add('text-slate-400', 'border-transparent');
+                });
+                tabContents.forEach(c => c.classList.add('hidden'));
+
+                // Add active class to clicked
+                btn.classList.add('active', 'text-emerald-400', 'border-emerald-500');
+                btn.classList.remove('text-slate-400', 'border-transparent');
+                
+                // Show target content
+                const target = document.getElementById(btn.dataset.target);
+                target.classList.remove('hidden');
+                
+                // If switching to overview, ensure chart renders correctly
+                if(btn.dataset.target === 'tab-overview' && chart) {
+                    setTimeout(() => chart.update(), 100);
+                }
+            });
+        });
+
+        // --- TASK BANNER PROGRESSION ---
+        let currentStep = 1;
+        setInterval(() => {
+            // Remove active from all
+            document.querySelectorAll('.task-step').forEach(step => {
+                step.classList.add('opacity-50');
+                const indicator = step.querySelector('.step-indicator');
+                indicator.classList.remove('bg-emerald-500', 'animate-pulse-fast', 'glow-emerald');
+                indicator.classList.add('bg-slate-600');
+                step.querySelector('.step-text').classList.remove('text-emerald-100');
+            });
+
+            // Set next step
+            currentStep = currentStep >= 4 ? 1 : currentStep + 1;
+            const activeStep = document.querySelector(`.task-step[data-step="${currentStep}"]`);
+            
+            if(activeStep) {
+                activeStep.classList.remove('opacity-50');
+                const indicator = activeStep.querySelector('.step-indicator');
+                indicator.classList.remove('bg-slate-600');
+                indicator.classList.add('bg-emerald-500', 'animate-pulse-fast', 'glow-emerald');
+                activeStep.querySelector('.step-text').classList.add('text-emerald-100');
+            }
+        }, 5000);
+
+        // --- CONNECTION TOGGLE ---
+        const connectionToggle = document.getElementById('connectionToggle');
+        const connectionText = document.getElementById('connectionText');
+        
+        connectionToggle.addEventListener('change', (e) => {
+            if(e.target.checked) {
+                connectionText.textContent = "ONLINE";
+                connectionText.classList.replace('text-red-400', 'text-slate-300');
+                isPolling = true;
+            } else {
+                connectionText.textContent = "OFFLINE";
+                connectionText.classList.replace('text-slate-300', 'text-red-400');
+                isPolling = false;
+            }
+        });
+
+        // --- CHART & METRICS SIMULATION ---
+        const ctx = document.getElementById('performanceChart').getContext('2d');
+        let chartLabels = Array.from({length: 20}, (_, i) => i);
+        let tpsData = Array(20).fill(40).map(v => v + (Math.random()*10 - 5));
+        let vramData = Array(20).fill(7.5).map(v => v + (Math.random()*0.5 - 0.25));
+        
+        const chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: chartLabels,
+                datasets: [
+                    {
+                        label: 'TPS (Tokens/sec)',
+                        data: tpsData,
+                        borderColor: '#10b981', // emerald-500
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        fill: true,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'VRAM Usage (GB)',
+                        data: vramData,
+                        borderColor: '#3b82f6', // blue-500
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        borderDash: [5, 5],
+                        tension: 0.4,
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                        titleColor: '#e2e8f0',
+                        bodyColor: '#94a3b8',
+                        borderColor: '#334155',
+                        borderWidth: 1
+                    }
+                },
+                scales: {
+                    x: { display: false },
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        grid: { color: '#1e293b' },
+                        min: 0,
+                        max: 80,
+                        ticks: { color: '#64748b' }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        grid: { drawOnChartArea: false },
+                        min: 0,
+                        max: 12,
+                        ticks: { color: '#64748b' }
+                    }
+                }
+            }
+        });
+
+        // --- TERMINAL SIMULATION ---
+        const terminalOutput = document.getElementById('terminalOutput');
+        const autoScrollToggle = document.getElementById('autoScrollToggle');
+        
+        const fakeLogs = [
+            { type: 'info', msg: 'System check complete. All models loaded.' },
+            { type: 'action', msg: 'TOOL CALL: bash(command="ls -la src/")' },
+            { type: 'success', msg: 'Execution successful. Found 4 files.' },
+            { type: 'info', msg: 'Parsing context window... 4,210 tokens active.' },
+            { type: 'action', msg: 'TOOL CALL: edit_file(path="src/main.py")' },
+            { type: 'warn', msg: 'File size large, considering pagination.' },
+            { type: 'success', msg: 'Patch applied successfully to main.py' },
+            { type: 'info', msg: 'Running syntax verification pipeline...' },
+            { type: 'error', msg: 'SyntaxError: unexpected EOF while parsing' },
+            { type: 'action', msg: 'RE-THINK: Fixing previous error in logic.' }
+        ];
+
+        function getTimestamp() {
+            const now = new Date();
+            return `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
+        }
+
+        function appendLog() {
+            const logEntry = fakeLogs[Math.floor(Math.random() * fakeLogs.length)];
+            const div = document.createElement('div');
+            div.className = 'mb-1';
+            
+            // Format log based on type
+            let colorClass = 'log-info';
+            if (logEntry.type === 'success') colorClass = 'log-success';
+            if (logEntry.type === 'warn') colorClass = 'log-warn';
+            if (logEntry.type === 'error') colorClass = 'log-error';
+            if (logEntry.type === 'action') colorClass = 'log-action';
+
+            div.innerHTML = `<span class="log-time">[${getTimestamp()}]</span> <span class="${colorClass}">${logEntry.msg}</span>`;
+            terminalOutput.appendChild(div);
+
+            // Keep max 50 lines
+            if (terminalOutput.children.length > 50) {
+                terminalOutput.removeChild(terminalOutput.firstChild);
+            }
+
+            // Auto-scroll
+            if (autoScrollToggle.checked) {
+                terminalOutput.scrollTop = terminalOutput.scrollHeight;
+            }
+        }
+
+        let isPolling = true;
+        let totalSavings = 2.45;
+
+        // Main Data Loop
+        setInterval(() => {
+            if (!isPolling) return;
+
+            // Update Chart
+            const newTps = Math.max(10, Math.min(75, tpsData[tpsData.length - 1] + (Math.random()*10 - 5)));
+            const newVram = Math.max(4, Math.min(11.5, vramData[vramData.length - 1] + (Math.random()*0.4 - 0.2)));
+            
+            tpsData.shift();
+            tpsData.push(newTps);
+            
+            vramData.shift();
+            vramData.push(newVram);
+            
+            chart.update('none');
+
+            // Update Metric Cards
+            document.getElementById('metric-tps').textContent = newTps.toFixed(1);
+            document.getElementById('metric-vram').textContent = newVram.toFixed(1);
+            
+            // Increment savings slowly
+            totalSavings += (newTps * 0.0001);
+            document.getElementById('metric-savings').textContent = `$${totalSavings.toFixed(2)}`;
+
+            // Add Log entry randomly
+            if(Math.random() > 0.3) {
+                appendLog();
+            }
+
+        }, 2000);
+
+        // Populate initial logs
+        for(let i=0; i<15; i++) { appendLog(); }
+
+        // --- CONTEXT LAB: KV CACHE MATH ---
+        function updateKVCache() {
+            const layers = parseFloat(document.getElementById('kv-layers').value) || 0;
+            const heads = parseFloat(document.getElementById('kv-heads').value) || 0;
+            const dim = parseFloat(document.getElementById('kv-dim').value) || 0;
+            const context = parseFloat(document.getElementById('kv-context').value) || 0;
+            const bytesPerParam = parseFloat(document.getElementById('kv-precision').value) || 2;
+            
+            // Formula: 2 * layers * heads * dim * context_tokens * bytes_per_param
+            // Divided by 1024^3 for GB
+            const bytes = 2 * layers * heads * dim * context * bytesPerParam;
+            const gb = bytes / Math.pow(1024, 3);
+            
+            document.getElementById('kv-result').textContent = `${gb.toFixed(2)} GB`;
+        }
+        
+        ['kv-layers', 'kv-heads', 'kv-dim', 'kv-context', 'kv-precision'].forEach(id => {
+            document.getElementById(id).addEventListener('input', updateKVCache);
+            document.getElementById(id).addEventListener('change', updateKVCache);
+        });
+        updateKVCache(); // Init
+
+        // --- CONTEXT LAB: PROMPT COMPRESSOR ---
+        document.getElementById('btn-compress').addEventListener('click', () => {
+            const input = document.getElementById('prompt-input').value;
+            const rawTokens = Math.max(0, Math.floor(input.length / 4)); // Approx 4 chars per token
+            const optTokens = Math.floor(rawTokens * 0.65); // Simulate 35% compression
+            
+            document.getElementById('raw-tokens').textContent = rawTokens;
+            document.getElementById('opt-tokens').textContent = optTokens;
+            
+            const ratio = rawTokens > 0 ? ((rawTokens - optTokens) / rawTokens) * 100 : 0;
+            document.getElementById('compression-ratio').textContent = `${ratio.toFixed(0)}% saved via heuristic pruning`;
+            
+            const bar = document.getElementById('compression-bar');
+            bar.style.width = '0%';
+            setTimeout(() => { bar.style.width = '65%'; }, 100);
+            
+            if(rawTokens > 0) {
+                document.getElementById('prompt-input').value = `[System instructions compressed. Removed boilerplate. Kept core constraints.]\n\n` + input.substring(0, Math.floor(input.length * 0.65)) + '... [truncated]';
+            }
+        });
+
+        // --- ROI CALCULATOR MATH ---
+        function updateROI() {
+            const prompts = parseFloat(document.getElementById('slider-prompts').value);
+            const inputTok = parseFloat(document.getElementById('slider-input').value);
+            const outputTok = parseFloat(document.getElementById('slider-output').value);
+            
+            document.getElementById('val-prompts').textContent = prompts.toLocaleString();
+            document.getElementById('val-input').textContent = inputTok.toLocaleString();
+            document.getElementById('val-output').textContent = outputTok.toLocaleString();
+
+            const daysInMonth = 30;
+            const totalMonthlyPrompts = prompts * daysInMonth;
+            const totalInputTokensM = (totalMonthlyPrompts * inputTok) / 1000000;
+            const totalOutputTokensM = (totalMonthlyPrompts * outputTok) / 1000000;
+            
+            // Cloud API Approx (Claude 3.5 Sonnet / GPT-4o style rates)
+            // ~$3 / 1M input, ~$15 / 1M output
+            const cloudCost = (totalInputTokensM * 3) + (totalOutputTokensM * 15);
+            
+            // Local Cost (Electricity)
+            // Assumed 400W peak draw for a GPU rig. 
+            // Processing time: assume 1 min per prompt avg for local reasoning
+            const hoursPerDay = (prompts * 1) / 60; // hours
+            const kWhPerMonth = (400 / 1000) * hoursPerDay * daysInMonth;
+            const localCost = kWhPerMonth * 0.15; // $0.15 per kWh
+
+            const savings = cloudCost - localCost;
+
+            document.getElementById('cost-cloud').textContent = `$${cloudCost.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
+            document.getElementById('cost-local').textContent = `$${localCost.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
+            document.getElementById('cost-savings').textContent = `$${Math.max(0, savings).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
+        }
+
+        ['slider-prompts', 'slider-input', 'slider-output'].forEach(id => {
+            document.getElementById(id).addEventListener('input', updateROI);
+        });
+        updateROI(); // Init
+
+    </script>
+</body>
+</html>

@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Local AI & OpenCode Live Dashboard</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js for real-time visual metrics -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                            900: '#14532d',
+                        },
+                        darkbg: '#0b0f17',
+                        cardbg: '#111827',
+                        bordercolor: '#1f2937'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        mono: ['Fira Code', 'JetBrains Mono', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #0b0f17;
+            color: #f3f4f6;
+            font-family: 'Inter', sans-serif;
+        }
+        .glow-green {
+            box-shadow: 0 0 15px rgba(34, 197, 94, 0.25);
+        }
+        .glow-amber {
+            box-shadow: 0 0 15px rgba(245, 158, 11, 0.25);
+        }
+        .pulse-heartbeat {
+            animation: pulse-glow 2s infinite ease-in-out;
+        }
+        @keyframes pulse-glow {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(0.96); }
+        }
+        /* Custom scrollbars for terminal windows */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #111827;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #374151;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #4b5563;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between antialiased selection:bg-emerald-500 selection:text-white">
+
+    <!-- Top Header Navigation Bar -->
+    <header class="border-b border-gray-800 bg-gray-900/80 backdrop-blur-md sticky top-0 z-40 px-4 py-3">
+        <div class="max-w-7xl mx-auto flex flex-wrap justify-between items-center gap-4">
+            <!-- Brand Logo & Title -->
+            <div class="flex items-center gap-3">
+                <div class="p-2 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400">
+                    <i data-lucide="cpu" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h1 class="font-bold text-lg text-white tracking-wide">Local AI & OpenCode Ops</h1>
+                        <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono">v2.4 Live</span>
+                    </div>
+                    <p class="text-xs text-gray-400">Telemetry & Agent Operations Center</p>
+                </div>
+            </div>
+
+            <!-- Server Status & Polling Controls -->
+            <div class="flex items-center gap-4 flex-wrap">
+                <!-- Ollama Connection Status -->
+                <div class="flex items-center gap-2 px-3 py-1.5 bg-gray-800/80 border border-gray-700/60 rounded-lg text-xs">
+                    <span class="relative flex h-2.5 w-2.5">
+                      <span id="ollama-pulse" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span id="ollama-dot" class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                    </span>
+                    <span class="font-semibold text-gray-300">Ollama (:11434):</span>
+                    <span id="ollama-status-text" class="text-emerald-400 font-mono font-medium">Checking...</span>
+                    <span id="ollama-ping" class="text-gray-500 font-mono text-[10px] ml-1">(0ms)</span>
+                </div>
+
+                <!-- OpenCode Connection Status -->
+                <div class="flex items-center gap-2 px-3 py-1.5 bg-gray-800/80 border border-gray-700/60 rounded-lg text-xs">
+                    <span class="relative flex h-2.5 w-2.5">
+                      <span id="opencode-pulse" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                      <span id="opencode-dot" class="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+                    </span>
+                    <span class="font-semibold text-gray-300">OpenCode (:4096):</span>
+                    <span id="opencode-status-text" class="text-amber-400 font-mono font-medium">Checking...</span>
+                    <span id="opencode-ping" class="text-gray-500 font-mono text-[10px] ml-1">(0ms)</span>
+                </div>
+
+                <!-- Mode Toggle Badge -->
+                <button onclick="toggleSimulationMode()" id="simulation-toggle" class="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 rounded-lg text-xs font-mono transition">
+                    <i data-lucide="activity" class="w-3.5 h-3.5"></i>
+                    <span id="sim-mode-text">Auto-Fallback Active</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Dashboard Body -->
+    <main class="max-w-7xl mx-auto px-4 py-6 w-full flex-grow space-y-6">
+
+        <!-- Navigation Tabs -->
+        <div class="flex border-b border-gray-800 space-x-2 overflow-x-auto pb-1">
+            <button onclick="switchTab('overview')" id="tab-overview" class="tab-btn px-4 py-2 text-sm font-medium border-b-2 border-emerald-500 text-emerald-400 flex items-center gap-2">
+                <i data-lucide="layout-dashboard" class="w-4 h-4"></i> System Overview
+            </button>
+            <button onclick="switchTab('agent')" id="tab-agent" class="tab-btn px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-gray-200 flex items-center gap-2">
+                <i data-lucide="bot" class="w-4 h-4"></i> Agent Loop Inspector
+            </button>
+            <button onclick="switchTab('context')" id="tab-context" class="tab-btn px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-gray-200 flex items-center gap-2">
+                <i data-lucide="brain-circuit" class="w-4 h-4"></i> Context Engineering Lab
+            </button>
+            <button onclick="switchTab('roi')" id="tab-roi" class="tab-btn px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-gray-200 flex items-center gap-2">
+                <i data-lucide="calculator" class="w-4 h-4"></i> ROI & Savings
+            </button>
+            <button onclick="switchTab('docs')" id="tab-docs" class="tab-btn px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-gray-200 flex items-center gap-2">
+                <i data-lucide="book-open" class="w-4 h-4"></i> Concepts & Architecture
+            </button>
+        </div>
+
+        <!-- ================= TAB 1: SYSTEM OVERVIEW ================= -->
+        <div id="view-overview" class="tab-content space-y-6">
+            <!-- Top Metric Cards Grid -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <!-- VRAM Allocation Card -->
+                <div class="bg-cardbg border border-gray-800 rounded-xl p-4 flex flex-col justify-between">
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="text-xs font-semibold text-gray-400 flex items-center gap-1.5">
+                            <i data-lucide="hard-drive" class="w-4 h-4 text-emerald-400"></i> Active VRAM
+                        </span>
+                        <button onclick="showInfoModal('vram')" class="text-gray-500 hover:text-gray-300">
+                            <i data-lucide="help-circle" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+                    <div>
+                        <div class="flex items-baseline gap-2">
+                            <span id="metric-vram-used" class="text-2xl font-bold font-mono text-white">7.4 GB</span>
+                            <span class="text-xs text-gray-400">/ <span id="metric-vram-total">16.0 GB</span></span>
+                        </div>
+                        <!-- Progress Bar -->
+                        <div class="w-full bg-gray-800 rounded-full h-2 mt-2 overflow-hidden">
+                            <div id="vram-progress-bar" class="bg-emerald-500 h-2 rounded-full transition-all duration-500" style="width: 46%;"></div>
+                        </div>
+                    </div>
+                    <span id="vram-status-sub" class="text-[11px] text-gray-400 mt-2">Active model in GPU memory</span>
+                </div>
+
+                <!-- Tokens Per Second -->
+                <div class="bg-cardbg border border-gray-800 rounded-xl p-4 flex flex-col justify-between">
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="text-xs font-semibold text-gray-400 flex items-center gap-1.5">
+                            <i data-lucide="zap" class="w-4 h-4 text-amber-400"></i> Throughput (TPS)
+                        </span>
+                        <button onclick="showInfoModal('tps')" class="text-gray-500 hover:text-gray-300">
+                            <i data-lucide="help-circle" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+                    <div>
+                        <div class="flex items-baseline gap-2">
+                            <span id="metric-tps" class="text-2xl font-bold font-mono text-white">48.2</span>
+                            <span class="text-xs text-emerald-400 font-mono">tok/s</span>
+                        </div>
+                        <div class="text-xs text-gray-400 mt-1">
+                            TTFT: <span id="metric-ttft" class="font-mono text-gray-200">182ms</span>
+                        </div>
+                    </div>
+                    <span class="text-[11px] text-gray-400 mt-2">Live generation velocity</span>
+                </div>
+
+                <!-- Active Model Card -->
+                <div class="bg-cardbg border border-gray-800 rounded-xl p-4 flex flex-col justify-between">
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="text-xs font-semibold text-gray-400 flex items-center gap-1.5">
+                            <i data-lucide="box" class="w-4 h-4 text-blue-400"></i> Active Model
+                        </span>
+                        <button onclick="showInfoModal('quant')" class="text-gray-500 hover:text-gray-300">
+                            <i data-lucide="help-circle" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+                    <div>
+                        <div id="metric-model-name" class="text-base font-bold font-mono text-blue-400 truncate">qwen2.5-coder:14b</div>
+                        <div class="flex items-center gap-2 mt-1">
+                            <span id="metric-quant-type" class="px-1.5 py-0.5 bg-blue-500/10 border border-blue-500/30 text-blue-300 text-[10px] rounded font-mono">Q4_K_M</span>
+                            <span id="metric-ctx-window" class="text-xs text-gray-400 font-mono">16,384 Ctx</span>
+                        </div>
+                    </div>
+                    <span class="text-[11px] text-gray-400 mt-2">Local Ollama loaded weight</span>
+                </div>
+
+                <!-- Agent Task Status -->
+                <div class="bg-cardbg border border-gray-800 rounded-xl p-4 flex flex-col justify-between">
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="text-xs font-semibold text-gray-400 flex items-center gap-1.5">
+                            <i data-lucide="play-circle" class="w-4 h-4 text-purple-400"></i> OpenCode Loop
+                        </span>
+                        <button onclick="showInfoModal('agent-loop')" class="text-gray-500 hover:text-gray-300">
+                            <i data-lucide="help-circle" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span id="metric-agent-step" class="text-lg font-bold text-white">Step 3: Editing</span>
+                        </div>
+                        <div id="metric-agent-task" class="text-xs text-gray-400 truncate mt-0.5">Refactoring AST search functions...</div>
+                    </div>
+                    <div class="flex items-center justify-between text-[11px] text-gray-400 mt-2">
+                        <span>Active Subagent</span>
+                        <span id="metric-tool-count" class="font-mono text-purple-300">14 Tool Calls</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Grid -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Real-time Throughput Chart -->
+                <div class="lg:col-span-2 bg-cardbg border border-gray-800 rounded-xl p-5 flex flex-col justify-between">
+                    <div class="flex justify-between items-center mb-4">
+                        <div>
+                            <h3 class="text-sm font-semibold text-gray-200">Live Model Throughput & VRAM Utilization</h3>
+                            <p class="text-xs text-gray-400">Real-time sampling every 2 seconds</p>
+                        </div>
+                        <div class="flex items-center gap-4 text-xs font-mono">
+                            <span class="flex items-center gap-1.5 text-emerald-400"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span> TPS</span>
+                            <span class="flex items-center gap-1.5 text-amber-400"><span class="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span> VRAM (GB)</span>
+                        </div>
+                    </div>
+                    <div class="h-64 w-full">
+                        <canvas id="throughputChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Installed Local Models List -->
+                <div class="bg-cardbg border border-gray-800 rounded-xl p-5 flex flex-col">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="text-sm font-semibold text-gray-200 flex items-center gap-2">
+                            <i data-lucide="server" class="w-4 h-4 text-emerald-400"></i> Local Model Registry
+                        </h3>
+                        <span id="model-count-badge" class="px-2 py-0.5 bg-gray-800 text-gray-400 rounded-full text-xs font-mono">3 Installed</span>
+                    </div>
+                    <div id="models-list-container" class="space-y-2.5 overflow-y-auto max-h-64 pr-1">
+                        <!-- Populated dynamically via JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= TAB 2: AGENT LOOP INSPECTOR ================= -->
+        <div id="view-agent" class="tab-content hidden space-y-6">
+            <!-- Active Subagent Lifecycle Pipeline -->
+            <div class="bg-cardbg border border-gray-800 rounded-xl p-5">
+                <h3 class="text-sm font-semibold text-gray-200 mb-4 flex items-center gap-2">
+                    <i data-lucide="git-commit" class="w-4 h-4 text-amber-400"></i> OpenCode Autonomous Loop Lifecycle
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <!-- Step 1 -->
+                    <div id="step-card-1" class="border border-emerald-500/40 bg-emerald-500/10 rounded-lg p-3 text-xs space-y-1">
+                        <div class="flex justify-between items-center font-semibold text-emerald-400">
+                            <span>1. Planning & Intent</span>
+                            <i data-lucide="check-circle-2" class="w-4 h-4"></i>
+                        </div>
+                        <p class="text-gray-300">Parse prompt, break down dependencies, synthesize task list.</p>
+                    </div>
+                    <!-- Step 2 -->
+                    <div id="step-card-2" class="border border-emerald-500/40 bg-emerald-500/10 rounded-lg p-3 text-xs space-y-1">
+                        <div class="flex justify-between items-center font-semibold text-emerald-400">
+                            <span>2. File Inspection</span>
+                            <i data-lucide="check-circle-2" class="w-4 h-4"></i>
+                        </div>
+                        <p class="text-gray-300">Execute `glob`, `read` tool calls to inspect workspace code.</p>
+                    </div>
+                    <!-- Step 3 -->
+                    <div id="step-card-3" class="border border-amber-500/60 bg-amber-500/10 rounded-lg p-3 text-xs space-y-1 pulse-heartbeat">
+                        <div class="flex justify-between items-center font-semibold text-amber-400">
+                            <span>3. Code Modification</span>
+                            <i data-lucide="loader" class="w-4 h-4 animate-spin"></i>
+                        </div>
+                        <p class="text-gray-300">Applying targeted AST changes with `edit` & `write` tool calls.</p>
+                    </div>
+                    <!-- Step 4 -->
+                    <div id="step-card-4" class="border border-gray-800 bg-gray-900/50 rounded-lg p-3 text-xs space-y-1 opacity-60">
+                        <div class="flex justify-between items-center font-semibold text-gray-400">
+                            <span>4. Verification</span>
+                            <i data-lucide="circle" class="w-4 h-4"></i>
+                        </div>
+                        <p class="text-gray-400">Execute `bash` unit tests to confirm bug fix without regressions.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Streaming Tool Execution Terminal -->
+            <div class="bg-cardbg border border-gray-800 rounded-xl p-5 flex flex-col space-y-3">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center gap-2">
+                        <div class="flex gap-1.5">
+                            <span class="w-3 h-3 rounded-full bg-red-500/80 inline-block"></span>
+                            <span class="w-3 h-3 rounded-full bg-amber-500/80 inline-block"></span>
+                            <span class="w-3 h-3 rounded-full bg-emerald-500/80 inline-block"></span>
+                        </div>
+                        <span class="text-xs font-mono text-gray-400 ml-2">opencode-server --tail -f /session/logs</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="clearTerminal()" class="text-xs text-gray-400 hover:text-white px-2 py-1 bg-gray-800 rounded border border-gray-700 font-mono">Clear</button>
+                        <span class="text-xs px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-400 font-mono">LIVE FEED</span>
+                    </div>
+                </div>
+                
+                <!-- Terminal Output Box -->
+                <div id="terminal-body" class="bg-black/90 border border-gray-800 rounded-lg p-4 font-mono text-xs text-gray-300 h-80 overflow-y-auto space-y-2">
+                    <!-- Dynamic logs stream here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= TAB 3: CONTEXT ENGINEERING LAB ================= -->
+        <div id="view-context" class="tab-content hidden space-y-6">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Prompt Optimization Tool -->
+                <div class="bg-cardbg border border-gray-800 rounded-xl p-5 space-y-4">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-sm font-semibold text-gray-200 flex items-center gap-2">
+                            <i data-lucide="scissors" class="w-4 h-4 text-emerald-400"></i> Prompt Token Compressor
+                        </h3>
+                        <span class="text-xs text-gray-400">Reduces KV cache load & TTFT</span>
+                    </div>
+
+                    <div>
+                        <label class="text-xs text-gray-400 mb-1 block">Raw Unoptimized Input Prompt:</label>
+                        <textarea id="raw-prompt-input" rows="4" class="w-full bg-gray-900 border border-gray-800 rounded-lg p-3 text-xs font-mono text-gray-200 focus:outline-none focus:border-emerald-500" placeholder="Paste verbose system prompt or context here...">Please review the following JavaScript code snippet. I would like you to carefully analyze it step by step, check for any possible performance bottlenecks, format it cleanly, add comments explaining every line, and then rewrite it to be as fast as possible using modern ES6 syntax.</textarea>
+                    </div>
+
+                    <button onclick="optimizePrompt()" class="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium transition flex items-center justify-center gap-2">
+                        <i data-lucide="wand2" class="w-4 h-4"></i> Compress & Optimize Prompt Context
+                    </button>
+
+                    <div>
+                        <label class="text-xs text-emerald-400 mb-1 block font-semibold">Engineered Compressed Prompt:</label>
+                        <div id="optimized-prompt-output" class="w-full bg-gray-900/80 border border-emerald-500/30 rounded-lg p-3 text-xs font-mono text-emerald-300 min-h-[80px]">
+                            Click Optimize to run compression rules...
+                        </div>
+                    </div>
+
+                    <!-- Savings Metrics -->
+                    <div class="grid grid-cols-3 gap-2 text-center bg-gray-900/50 p-3 rounded-lg border border-gray-800 text-xs font-mono">
+                        <div>
+                            <span class="text-gray-400 block text-[10px]">RAW TOKENS</span>
+                            <span id="token-count-raw" class="text-gray-200 font-bold">54</span>
+                        </div>
+                        <div>
+                            <span class="text-gray-400 block text-[10px]">OPTIMIZED</span>
+                            <span id="token-count-opt" class="text-emerald-400 font-bold">18</span>
+                        </div>
+                        <div>
+                            <span class="text-gray-400 block text-[10px]">SAVINGS</span>
+                            <span id="token-savings-pct" class="text-amber-400 font-bold">66.7%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Interactive KV Cache RAM Budget Calculator -->
+                <div class="bg-cardbg border border-gray-800 rounded-xl p-5 space-y-4">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-sm font-semibold text-gray-200 flex items-center gap-2">
+                            <i data-lucide="calculator" class="w-4 h-4 text-blue-400"></i> KV Cache VRAM Calculator
+                        </h3>
+                        <button onclick="showInfoModal('kv-cache')" class="text-xs text-blue-400 hover:underline flex items-center gap-1">
+                            Formula Info <i data-lucide="help-circle" class="w-3 h-3"></i>
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3 text-xs">
+                        <div>
+                            <label class="text-gray-400 mb-1 block">Transformer Layers ($L$):</label>
+                            <input id="kv-layers" type="number" value="48" oninput="calculateKVCache()" class="w-full bg-gray-900 border border-gray-800 rounded p-2 font-mono text-gray-200">
+                        </div>
+                        <div>
+                            <label class="text-gray-400 mb-1 block">Attention Heads ($H$):</label>
+                            <input id="kv-heads" type="number" value="8" oninput="calculateKVCache()" class="w-full bg-gray-900 border border-gray-800 rounded p-2 font-mono text-gray-200">
+                        </div>
+                        <div>
+                            <label class="text-gray-400 mb-1 block">Head Dim ($D$):</label>
+                            <input id="kv-head-dim" type="number" value="128" oninput="calculateKVCache()" class="w-full bg-gray-900 border border-gray-800 rounded p-2 font-mono text-gray-200">
+                        </div>
+                        <div>
+                            <label class="text-gray-400 mb-1 block">Context Tokens ($N$):</label>
+                            <input id="kv-tokens" type="number" value="16384" step="1024" oninput="calculateKVCache()" class="w-full bg-gray-900 border border-gray-800 rounded p-2 font-mono text-gray-200">
+                        </div>
+                        <div class="col-span-2">
+                            <label class="text-gray-400 mb-1 block">KV Precision / Quantization:</label>
+                            <select id="kv-precision" onchange="calculateKVCache()" class="w-full bg-gray-900 border border-gray-800 rounded p-2 font-mono text-gray-200">
+                                <option value="2">FP16 (16-bit / 2 Bytes per element)</option>
+                                <option value="1">Q8_0 (8-bit / 1 Byte per element)</option>
+                                <option value="0.5" selected>Q4_0 / FP8 (4-bit / 0.5 Bytes per element)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Result Box -->
+                    <div class="p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg flex justify-between items-center">
+                        <div>
+                            <span class="text-xs text-blue-300 block font-semibold">Estimated KV Cache VRAM Overhead:</span>
+                            <span class="text-[10px] text-gray-400">$2 \times L \times H \times D \times N \times \text{Bytes}$</span>
+                        </div>
+                        <span id="kv-cache-result" class="text-2xl font-bold font-mono text-blue-400">1.00 GB</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= TAB 4: ROI & SAVINGS CALCULATOR ================= -->
+        <div id="view-roi" class="tab-content hidden space-y-6">
+            <div class="bg-cardbg border border-gray-800 rounded-xl p-6 space-y-6">
+                <div>
+                    <h3 class="text-base font-bold text-gray-200 flex items-center gap-2">
+                        <i data-lucide="piggy-bank" class="w-5 h-5 text-emerald-400"></i> Local AI vs Paid SaaS Subscription ROI Calculator
+                    </h3>
+                    <p class="text-xs text-gray-400">Calculate estimated financial savings by shifting workloads from Claude 3.5 Sonnet / OpenAI APIs & Cursor Pro to local Ollama execution.</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <!-- Interactive Sliders -->
+                    <div class="space-y-4 md:col-span-1">
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-gray-300">Daily Code Prompts:</span>
+                                <span id="slider-prompts-val" class="font-mono text-emerald-400">120</span>
+                            </div>
+                            <input id="slider-prompts" type="range" min="10" max="500" value="120" oninput="calculateROI()" class="w-full accent-emerald-500">
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-gray-300">Avg Prompt Tokens:</span>
+                                <span id="slider-input-tokens-val" class="font-mono text-emerald-400">4,000</span>
+                            </div>
+                            <input id="slider-input-tokens" type="range" min="500" max="20000" step="500" value="4000" oninput="calculateROI()" class="w-full accent-emerald-500">
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-gray-300">Avg Generation Tokens:</span>
+                                <span id="slider-output-tokens-val" class="font-mono text-emerald-400">800</span>
+                            </div>
+                            <input id="slider-output-tokens" type="range" min="100" max="4000" step="100" value="800" oninput="calculateROI()" class="w-full accent-emerald-500">
+                        </div>
+                    </div>
+
+                    <!-- Comparison Breakdown Cards -->
+                    <div class="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="bg-gray-900 border border-gray-800 rounded-lg p-4 space-y-2">
+                            <span class="text-xs font-semibold text-gray-400 block">Cloud API Equivalent Cost (Claude 3.5 Sonnet)</span>
+                            <div class="text-xl font-bold font-mono text-red-400" id="roi-cloud-monthly">$115.20 / mo</div>
+                            <p class="text-[11px] text-gray-400">Based on $3.00/1M input & $15.00/1M output tokens.</p>
+                        </div>
+
+                        <div class="bg-gray-900 border border-gray-800 rounded-lg p-4 space-y-2">
+                            <span class="text-xs font-semibold text-gray-400 block">Local Hardware Power Cost (300W GPU @ $0.16/kWh)</span>
+                            <div class="text-xl font-bold font-mono text-emerald-400" id="roi-local-power">$4.32 / mo</div>
+                            <p class="text-[11px] text-gray-400">Estimated electricity consumption during active execution.</p>
+                        </div>
+
+                        <div class="sm:col-span-2 bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-5 flex justify-between items-center">
+                            <div>
+                                <span class="text-xs font-bold text-emerald-300 block">NET MONTHLY FINANCIAL SAVINGS</span>
+                                <span class="text-[11px] text-gray-400">Replacing API + Cursor Pro ($20/mo) + ChatGPT Plus ($20/mo)</span>
+                            </div>
+                            <div id="roi-net-savings" class="text-3xl font-extrabold font-mono text-emerald-400">$150.88 / mo</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= TAB 5: ARCHITECTURE & CONCEPTS ================= -->
+        <div id="view-docs" class="tab-content hidden space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-cardbg border border-gray-800 rounded-xl p-5 space-y-3">
+                    <h3 class="text-sm font-bold text-emerald-400 flex items-center gap-2">
+                        <i data-lucide="layers" class="w-4 h-4"></i> OpenCode Agent Loop Architecture
+                    </h3>
+                    <p class="text-xs text-gray-300 leading-relaxed">
+                        OpenCode operates using an autonomous execution loop over local REST endpoints. Rather than single-turn prompt completions, OpenCode continuously queries local LLMs via tool bindings (`bash`, `read`, `write`, `edit`), parsing structured JSON responses to perform iterative code refactoring.
+                    </p>
+                </div>
+
+                <div class="bg-cardbg border border-gray-800 rounded-xl p-5 space-y-3">
+                    <h3 class="text-sm font-bold text-blue-400 flex items-center gap-2">
+                        <i data-lucide="cpu" class="w-4 h-4"></i> Ollama VRAM Management & Quantization
+                    </h3>
+                    <p class="text-xs text-gray-300 leading-relaxed">
+                        Ollama loads model weights directly into GPU VRAM using GGUF quantization formats (`Q4_K_M`, `Q8_0`). Quantization compresses 16-bit floating-point weights to 4-bit integers, enabling 14B and 32B models to fit seamlessly within standard consumer GPUs (8GB–24GB VRAM).
+                    </p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Interactive Educational Modal Popup -->
+    <div id="info-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-cardbg border border-gray-700 rounded-xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
+            <div class="flex justify-between items-center border-b border-gray-800 pb-3">
+                <h3 id="modal-title" class="text-base font-bold text-white flex items-center gap-2">
+                    <!-- Title dynamically set -->
+                </h3>
+                <button onclick="closeInfoModal()" class="text-gray-400 hover:text-white">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div id="modal-body" class="text-xs text-gray-300 space-y-3 leading-relaxed">
+                <!-- Content dynamically set -->
+            </div>
+            <div class="pt-2 flex justify-end">
+                <button onclick="closeInfoModal()" class="px-4 py-1.5 bg-gray-800 hover:bg-gray-700 text-white rounded text-xs">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <footer class="border-t border-gray-800 bg-gray-900/60 py-3 px-4 text-center text-xs text-gray-500 font-mono">
+        Local AI & OpenCode Live Operations Dashboard • Zero External Dependencies
+    </footer>
+
+    <script>
+        /* State Variables */
+        let simMode = false;
+        let throughputChart = null;
+        let chartDataPoints = Array(12).fill(0);
+        let chartVramPoints = Array(12).fill(7.4);
+        let chartLabels = Array(12).fill('');
+
+        // Simulated terminal logs pool
+        const mockLogTemplates = [
+            `[AGENT-LOOP] Invoking tool: 'read_file' path="src/server.js"`,
+            `[OLLAMA-API] POST /api/generate 200 OK (TTFT: 142ms, TPS: 46.8 tok/s)`,
+            `[AGENT-LOOP] Tool execution response received (1,240 bytes)`,
+            `[OPENCODE] Evaluating AST diffs for line 84-112`,
+            `[AGENT-LOOP] Invoking tool: 'edit' path="src/server.js" lines=[84, 112]`,
+            `[OLLAMA-API] KV Cache utilization: 42.1% (6,898 / 16,384 tokens)`
+        ];
+
+        /* Modal Definitions */
+        const modalDictionary = {
+            'vram': {
+                title: '<i data-lucide="hard-drive" class="text-emerald-400"></i> Active VRAM Allocation',
+                body: 'Video RAM (VRAM) holds the quantized model weights and active KV Cache memory. When querying local LLMs, model weights must fit directly into VRAM for GPU acceleration; otherwise, layers spill over into system CPU RAM, drastically reducing throughput.'
+            },
+            'tps': {
+                title: '<i data-lucide="zap" class="text-amber-400"></i> Tokens Per Second (TPS) & TTFT',
+                body: '<b>TPS (Tokens Per Second)</b> measures generation velocity once context is loaded.<br/><br/><b>TTFT (Time to First Token)</b> measures latency required for the GPU to process the prompt context before emitting the first token.'
+            },
+            'quant': {
+                title: '<i data-lucide="box" class="text-blue-400"></i> GGUF Quantization (Q4_K_M vs Q8_0)',
+                body: 'Quantization compresses 16-bit floating-point neural network weights into smaller integer precisions:<br/><ul class="list-disc ml-4 space-y-1 mt-1"><li><b>Q4_K_M:</b> 4-bit quantization with medium block sizes. Minimal quality loss with ~70% VRAM reduction.</li><li><b>Q8_0:</b> 8-bit quantization. Near-lossless precision requiring ~2x VRAM compared to 4-bit.</li></ul>'
+            },
+            'agent-loop': {
+                title: '<i data-lucide="bot" class="text-purple-400"></i> OpenCode Agent Execution Loop',
+                body: 'Unlike standard chat UI interfaces, OpenCode executes an iterative ReAct (Reasoning + Acting) loop: it plans steps, inspects files using tools, writes code modifications, and verifies output with shell commands.'
+            },
+            'kv-cache': {
+                title: '<i data-lucide="calculator" class="text-blue-400"></i> KV Cache Memory Calculation',
+                body: 'The Key-Value (KV) Cache stores attention vectors for previously processed tokens to avoid recalculating context at every generation step.<br/><br/><b>Formula:</b> Memory = 2 × Layers × Attention Heads × Head Dimension × Context Tokens × Precision Bytes'
+            }
+        };
+
+        window.onload = function() {
+            lucide.createIcons();
+            initChart();
+            startPolling();
+            populateMockModels();
+            optimizePrompt();
+            calculateKVCache();
+            calculateROI();
+        };
+
+        function initChart() {
+            const ctx = document.getElementById('throughputChart').getContext('2d');
+            throughputChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: chartLabels,
+                    datasets: [
+                        {
+                            label: 'TPS',
+                            data: chartDataPoints,
+                            borderColor: '#22c55e',
+                            backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                            fill: true,
+                            tension: 0.3,
+                            borderWidth: 2
+                        },
+                        {
+                            label: 'VRAM (GB)',
+                            data: chartVramPoints,
+                            borderColor: '#f59e0b',
+                            borderDash: [4, 4],
+                            fill: false,
+                            tension: 0.2,
+                            borderWidth: 1.5
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { display: false },
+                        y: {
+                            grid: { color: '#1f2937' },
+                            ticks: { color: '#9ca3af', font: { family: 'Fira Code', size: 10 } }
+                        }
+                    }
+                }
+            });
+        }
+
+        async function startPolling() {
+            setInterval(async () => {
+                const now = new Date().toLocaleTimeString();
+                
+                // Poll Ollama REST API
+                const t0 = performance.now();
+                try {
+                    const res = await fetch('http://localhost:11434/api/ps', { signal: AbortSignal.timeout(1500) });
+                    const ping = Math.round(performance.now() - t0);
+                    if (res.ok) {
+                        const data = await res.json();
+                        updateOllamaUI(true, ping, data);
+                    } else {
+                        updateOllamaUI(false, ping);
+                    }
+                } catch (e) {
+                    updateOllamaUI(false, 0);
+                }
+
+                // Poll OpenCode REST API
+                const t1 = performance.now();
+                try {
+                    const res = await fetch('http://localhost:4096/session/status', { signal: AbortSignal.timeout(1500) });
+                    const ping = Math.round(performance.now() - t1);
+                    if (res.ok) {
+                        const data = await res.json();
+                        updateOpenCodeUI(true, ping, data);
+                    } else {
+                        updateOpenCodeUI(false, ping);
+                    }
+                } catch (e) {
+                    updateOpenCodeUI(false, 0);
+                }
+
+                // Append live metrics & streaming terminal logs
+                updateChartAndTerminal(now);
+            }, 2000);
+        }
+
+        function updateOllamaUI(online, ping, data) {
+            const dot = document.getElementById('ollama-dot');
+            const pulse = document.getElementById('ollama-pulse');
+            const text = document.getElementById('ollama-status-text');
+            const pingText = document.getElementById('ollama-ping');
+
+            if (online) {
+                dot.className = "relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500";
+                pulse.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75";
+                text.innerText = "ONLINE";
+                text.className = "text-emerald-400 font-mono font-medium";
+                pingText.innerText = `(${ping}ms)`;
+            } else {
+                dot.className = "relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500";
+                pulse.className = "hidden";
+                text.innerText = simMode ? "SIMULATED" : "OFFLINE";
+                text.className = "text-amber-400 font-mono font-medium";
+                pingText.innerText = "(fallback)";
+            }
+        }
+
+        function updateOpenCodeUI(online, ping, data) {
+            const dot = document.getElementById('opencode-dot');
+            const pulse = document.getElementById('opencode-pulse');
+            const text = document.getElementById('opencode-status-text');
+            const pingText = document.getElementById('opencode-ping');
+
+            if (online) {
+                dot.className = "relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500";
+                pulse.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75";
+                text.innerText = "ACTIVE";
+                text.className = "text-emerald-400 font-mono font-medium";
+                pingText.innerText = `(${ping}ms)`;
+            } else {
+                dot.className = "relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500";
+                pulse.className = "hidden";
+                text.innerText = simMode ? "SIMULATED" : "OFFLINE";
+                text.className = "text-amber-400 font-mono font-medium";
+                pingText.innerText = "(fallback)";
+            }
+        }
+
+        function toggleSimulationMode() {
+            simMode = !simMode;
+            document.getElementById('sim-mode-text').innerText = simMode ? "Simulation Forced" : "Auto-Fallback Active";
+        }
+
+        function updateChartAndTerminal(timestamp) {
+            const newTPS = (Math.random() * 15 + 38).toFixed(1);
+            const newVRAM = (7.2 + Math.random() * 0.4).toFixed(1);
+
+            document.getElementById('metric-tps').innerText = newTPS;
+            document.getElementById('metric-vram-used').innerText = `${newVRAM} GB`;
+
+            chartLabels.push(timestamp);
+            chartLabels.shift();
+            chartDataPoints.push(newTPS);
+            chartDataPoints.shift();
+            chartVramPoints.push(newVRAM);
+            chartVramPoints.shift();
+
+            if (throughputChart) {
+                throughputChart.update('none');
+            }
+
+            // Stream log line to terminal
+            const term = document.getElementById('terminal-body');
+            const logMsg = mockLogTemplates[Math.floor(Math.random() * mockLogTemplates.length)];
+            const logLine = document.createElement('div');
+            logLine.className = "hover:bg-gray-800/50 p-0.5 rounded transition";
+            logLine.innerHTML = `<span class="text-gray-500">[${timestamp}]</span> ${logMsg}`;
+            term.appendChild(logLine);
+            term.scrollTop = term.scrollHeight;
+        }
+
+        function clearTerminal() {
+            document.getElementById('terminal-body').innerHTML = '';
+        }
+
+        function populateMockModels() {
+            const models = [
+                { name: 'qwen2.5-coder:14b', size: '9.0 GB', quant: 'Q4_K_M', active: true },
+                { name: 'deepseek-r1:8b', size: '4.9 GB', quant: 'Q4_K_M', active: false },
+                { name: 'llama3.1:8b', size: '4.7 GB', quant: 'Q8_0', active: false }
+            ];
+
+            const container = document.getElementById('models-list-container');
+            container.innerHTML = models.map(m => `
+                <div class="flex justify-between items-center p-2.5 rounded-lg border ${m.active ? 'bg-emerald-500/10 border-emerald-500/40' : 'bg-gray-900 border-gray-800'} text-xs font-mono">
+                    <div>
+                        <div class="font-bold text-gray-200 flex items-center gap-1.5">
+                            ${m.name}
+                            ${m.active ? '<span class="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse"></span>' : ''}
+                        </div>
+                        <span class="text-[10px] text-gray-400">${m.size} • ${m.quant}</span>
+                    </div>
+                    <span class="text-[10px] px-2 py-0.5 rounded ${m.active ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-gray-800 text-gray-400'}">
+                        ${m.active ? 'LOADED' : 'IDLE'}
+                    </span>
+                </div>
+            `).join('');
+        }
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(el => {
+                el.classList.remove('border-emerald-500', 'text-emerald-400');
+                el.classList.add('border-transparent', 'text-gray-400');
+            });
+
+            document.getElementById(`view-${tabId}`).classList.remove('hidden');
+            const activeBtn = document.getElementById(`tab-${tabId}`);
+            activeBtn.classList.remove('border-transparent', 'text-gray-400');
+            activeBtn.classList.add('border-emerald-500', 'text-emerald-400');
+        }
+
+        function optimizePrompt() {
+            const raw = document.getElementById('raw-prompt-input').value;
+            // Rule-based prompt compression simulation
+            let opt = raw
+                .replace(/Please review the following JavaScript code snippet\./gi, '')
+                .replace(/I would like you to carefully analyze it step by step/gi, 'Analyze AST')
+                .replace(/check for any possible performance bottlenecks/gi, 'profile performance')
+                .replace(/format it cleanly, add comments explaining every line, and then rewrite it to be as fast as possible using modern ES6 syntax\./gi, 'refactor cleanly with modern ES6.');
+
+            opt = `[TASK]: ${opt.trim()}`;
+
+            const rawTokens = Math.round(raw.length / 4);
+            const optTokens = Math.round(opt.length / 4);
+            const savings = (((rawTokens - optTokens) / rawTokens) * 100).toFixed(1);
+
+            document.getElementById('optimized-prompt-output').innerText = opt;
+            document.getElementById('token-count-raw').innerText = rawTokens;
+            document.getElementById('token-count-opt').innerText = optTokens;
+            document.getElementById('token-savings-pct').innerText = `${savings}%`;
+        }
+
+        function calculateKVCache() {
+            const L = parseFloat(document.getElementById('kv-layers').value) || 0;
+            const H = parseFloat(document.getElementById('kv-heads').value) || 0;
+            const D = parseFloat(document.getElementById('kv-head-dim').value) || 0;
+            const N = parseFloat(document.getElementById('kv-tokens').value) || 0;
+            const bytesPerElement = parseFloat(document.getElementById('kv-precision').value) || 0.5;
+
+            // KV Cache Bytes = 2 * Layers * Heads * HeadDim * Tokens * BytesPerElement
+            const totalBytes = 2 * L * H * D * N * bytesPerElement;
+            const totalGB = (totalBytes / (1024 * 1024 * 1024)).toFixed(2);
+
+            document.getElementById('kv-cache-result').innerText = `${totalGB} GB`;
+        }
+
+        function calculateROI() {
+            const dailyPrompts = parseInt(document.getElementById('slider-prompts').value);
+            const inputTokens = parseInt(document.getElementById('slider-input-tokens').value);
+            const outputTokens = parseInt(document.getElementById('slider-output-tokens').value);
+
+            document.getElementById('slider-prompts-val').innerText = dailyPrompts;
+            document.getElementById('slider-input-tokens-val').innerText = inputTokens.toLocaleString();
+            document.getElementById('slider-output-tokens-val').innerText = outputTokens.toLocaleString();
+
+            // Claude 3.5 Sonnet: $3.00/1M input, $15.00/1M output
+            const monthlyInputTokens = dailyPrompts * inputTokens * 30;
+            const monthlyOutputTokens = dailyPrompts * outputTokens * 30;
+
+            const cloudCost = ((monthlyInputTokens / 1000000) * 3.00) + ((monthlyOutputTokens / 1000000) * 15.00);
+            const powerCost = 4.32; // ~300W GPU active 3 hrs/day @ $0.16/kWh
+            const netSavings = cloudCost + 40 - powerCost; // $40 = Cursor Pro ($20) + ChatGPT Plus ($20)
+
+            document.getElementById('roi-cloud-monthly').innerText = `$${cloudCost.toFixed(2)} / mo`;
+            document.getElementById('roi-local-power').innerText = `$${powerCost.toFixed(2)} / mo`;
+            document.getElementById('roi-net-savings').innerText = `$${netSavings.toFixed(2)} / mo`;
+        }
+
+        function showInfoModal(key) {
+            const data = modalDictionary[key];
+            if (!data) return;
+            document.getElementById('modal-title').innerHTML = data.title;
+            document.getElementById('modal-body').innerHTML = data.body;
+            document.getElementById('info-modal').classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function closeInfoModal() {
+            document.getElementById('info-modal').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>

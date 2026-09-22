@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-950 text-slate-100">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Local AI & OpenCode 3D Execution Dashboard</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0fdf4',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            900: '#14532d',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'Fira Code', 'Consolas', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <!-- Three.js & OrbitControls -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        /* Custom scrollbar for logs and dark elements */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(51, 65, 85, 0.8);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(71, 85, 105, 1);
+        }
+        .canvas-container canvas {
+            outline: none;
+            border-radius: 0.75rem;
+        }
+    </style>
+</head>
+<body class="h-full font-sans antialiased bg-slate-950 text-slate-200 flex flex-col overflow-x-hidden">
+
+    <!-- TOP HIGH-VISIBILITY CONNECTION BANNER -->
+    <header class="bg-slate-900/90 backdrop-blur border-b border-slate-800 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+            <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
+                <!-- Branding -->
+                <div class="flex items-center space-x-3">
+                    <div class="p-2 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400">
+                        <i class="ph-bold ph-cube text-2xl"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2">
+                            Local AI 3D Execution Dashboard
+                            <span class="text-xs font-normal px-2 py-0.5 bg-slate-800 border border-slate-700 text-slate-400 rounded-full">v3.0.0</span>
+                        </h1>
+                        <p class="text-xs text-slate-400">Ollama & OpenCode Agent Spatial Graph Monitor</p>
+                    </div>
+                </div>
+
+                <!-- LIVE vs DEMO Prominent Status Bar -->
+                <div class="flex items-center gap-3 w-full sm:w-auto justify-end">
+                    <div id="connectionStatusBadge" class="flex items-center gap-3 px-4 py-2 rounded-xl border transition-all duration-300 bg-emerald-950/60 border-emerald-500/40 text-emerald-300">
+                        <span class="relative flex h-3.5 w-3.5">
+                            <span id="statusPingPulse" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span id="statusDot" class="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500"></span>
+                        </span>
+                        <div class="flex flex-col">
+                            <span id="statusLabel" class="text-xs font-extrabold uppercase tracking-wider">LIVE CONNECTION</span>
+                            <span id="statusPingTime" class="text-[10px] text-emerald-400/80 font-mono">11434 & 4096 ONLINE (14ms)</span>
+                        </div>
+                    </div>
+
+                    <!-- Simulation Toggle Switch -->
+                    <button onclick="toggleSimulation()" title="Toggle simulated live traffic" class="p-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-slate-300 transition-colors flex items-center gap-2 text-xs font-medium">
+                        <i class="ph-bold ph-arrows-clockwise text-base"></i>
+                        <span class="hidden md:inline">Toggle Live/Demo</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN CONTAINER -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        <!-- METRICS COUNTERS GRID -->
+        <section class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            <!-- Total Tool Calls -->
+            <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between hover:border-slate-700 transition-colors">
+                <div class="flex items-center justify-between text-slate-400">
+                    <span class="text-xs font-medium uppercase tracking-wider">Tool Calls</span>
+                    <i class="ph-bold ph-wrench text-slate-400 text-lg"></i>
+                </div>
+                <div class="mt-3 flex items-baseline justify-between">
+                    <span id="metricTotalCalls" class="text-2xl sm:text-3xl font-extrabold text-white font-mono">1,420</span>
+                    <span class="text-xs text-emerald-400 flex items-center font-mono">+18/m</span>
+                </div>
+                <div class="w-full bg-slate-800 h-1.5 rounded-full mt-3 overflow-hidden">
+                    <div id="progressCalls" class="bg-emerald-500 h-full rounded-full" style="width: 82%"></div>
+                </div>
+            </div>
+
+            <!-- Successful Calls -->
+            <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between hover:border-slate-700 transition-colors">
+                <div class="flex items-center justify-between text-slate-400">
+                    <span class="text-xs font-medium uppercase tracking-wider">Success Rate</span>
+                    <i class="ph-bold ph-check-circle text-emerald-400 text-lg"></i>
+                </div>
+                <div class="mt-3 flex items-baseline justify-between">
+                    <span id="metricSuccess" class="text-2xl sm:text-3xl font-extrabold text-emerald-400 font-mono">1,382</span>
+                    <span id="metricSuccessPct" class="text-xs font-mono font-bold text-emerald-400">97.3%</span>
+                </div>
+                <div class="w-full bg-slate-800 h-1.5 rounded-full mt-3 overflow-hidden">
+                    <div id="progressSuccess" class="bg-emerald-500 h-full rounded-full" style="width: 97.3%"></div>
+                </div>
+            </div>
+
+            <!-- Failures / Fix Loops -->
+            <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between hover:border-slate-700 transition-colors">
+                <div class="flex items-center justify-between text-slate-400">
+                    <span class="text-xs font-medium uppercase tracking-wider">Errors / Loops</span>
+                    <i class="ph-bold ph-x-circle text-rose-400 text-lg"></i>
+                </div>
+                <div class="mt-3 flex items-baseline justify-between">
+                    <span id="metricFails" class="text-2xl sm:text-3xl font-extrabold text-rose-400 font-mono">38</span>
+                    <span id="metricFailPct" class="text-xs font-mono font-bold text-rose-400">2.7%</span>
+                </div>
+                <div class="w-full bg-slate-800 h-1.5 rounded-full mt-3 overflow-hidden">
+                    <div id="progressFails" class="bg-rose-500 h-full rounded-full" style="width: 2.7%"></div>
+                </div>
+            </div>
+
+            <!-- File Edits -->
+            <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between hover:border-slate-700 transition-colors">
+                <div class="flex items-center justify-between text-slate-400">
+                    <span class="text-xs font-medium uppercase tracking-wider">File Edits</span>
+                    <i class="ph-bold ph-file-code text-purple-400 text-lg"></i>
+                </div>
+                <div class="mt-3 flex items-baseline justify-between">
+                    <span id="metricEdits" class="text-2xl sm:text-3xl font-extrabold text-purple-400 font-mono">486</span>
+                    <span class="text-xs text-slate-400 font-mono">diffs</span>
+                </div>
+                <div class="w-full bg-slate-800 h-1.5 rounded-full mt-3 overflow-hidden">
+                    <div id="progressEdits" class="bg-purple-500 h-full rounded-full" style="width: 68%"></div>
+                </div>
+            </div>
+
+            <!-- Bash Cmds -->
+            <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between hover:border-slate-700 transition-colors col-span-2 sm:col-span-1">
+                <div class="flex items-center justify-between text-slate-400">
+                    <span class="text-xs font-medium uppercase tracking-wider">Bash Cmds</span>
+                    <i class="ph-bold ph-terminal-window text-cyan-400 text-lg"></i>
+                </div>
+                <div class="mt-3 flex items-baseline justify-between">
+                    <span id="metricBash" class="text-2xl sm:text-3xl font-extrabold text-cyan-400 font-mono">896</span>
+                    <span class="text-xs text-slate-400 font-mono">runs</span>
+                </div>
+                <div class="w-full bg-slate-800 h-1.5 rounded-full mt-3 overflow-hidden">
+                    <div id="progressBash" class="bg-cyan-500 h-full rounded-full" style="width: 86%"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3D AGENT PATH VISUALIZER SECTION -->
+        <section class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-2xl flex flex-col gap-4">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                <div class="flex items-center space-x-3">
+                    <i class="ph-bold ph-graph text-emerald-400 text-2xl"></i>
+                    <div>
+                        <h2 class="text-base font-bold text-white flex items-center gap-2">
+                            3D Agent Execution Spatial Graph
+                            <span id="activeAgentBadge" class="text-xs font-mono font-semibold px-2 py-0.5 bg-purple-950/80 text-purple-300 border border-purple-500/40 rounded-md">
+                                Agent: Planner
+                            </span>
+                        </h2>
+                        <p class="text-xs text-slate-400">Real-time state transitions with active energy pulse paths</p>
+                    </div>
+                </div>
+
+                <!-- 3D View Controls -->
+                <div class="flex items-center gap-2 flex-wrap">
+                    <button onclick="triggerStepSimulation()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 shadow-lg shadow-emerald-900/30">
+                        <i class="ph-bold ph-play"></i> Step Next Transition
+                    </button>
+                    <button onclick="toggleAutoRotate()" id="rotateBtn" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5">
+                        <i class="ph-bold ph-arrows-clockwise"></i> Auto-Rotate: ON
+                    </button>
+                    <button onclick="reset3DView()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-medium transition-colors flex items-center gap-1">
+                        <i class="ph-bold ph-arrows-out"></i> Reset Camera
+                    </button>
+                </div>
+            </div>
+
+            <!-- THREE.JS CANVAS CONTAINER & INSPECTION OVERLAY -->
+            <div class="relative w-full h-[460px] bg-slate-950 rounded-xl overflow-hidden border border-slate-800/80 canvas-container">
+                <div id="threeCanvas" class="w-full h-full"></div>
+
+                <!-- Node Hover/Selection Detail Overlay -->
+                <div id="nodeDetailBox" class="absolute bottom-4 left-4 max-w-md w-full bg-slate-900/95 backdrop-blur border border-slate-700/80 rounded-xl p-4 shadow-2xl transition-all duration-200 pointer-events-none">
+                    <div class="flex items-center justify-between border-b border-slate-800 pb-2 mb-2">
+                        <span id="nodeDetailTitle" class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                            <span id="nodeColorDot" class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+                            Planning Stage
+                        </span>
+                        <span id="nodeDetailStatus" class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">Active Step</span>
+                    </div>
+                    <div class="space-y-1.5 text-xs text-slate-300 font-mono">
+                        <p id="nodeDetailDesc" class="text-slate-400 text-[11px] font-sans">Agent decomposes feature request into execution steps.</p>
+                        <div class="bg-slate-950 p-2 rounded border border-slate-800/80 text-[11px] overflow-x-auto text-emerald-300" id="nodePayloadText">
+                            Payload: { step: "Architect pattern review", target: "AGENTS.md" }
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3D Legend -->
+                <div class="absolute top-4 right-4 bg-slate-900/80 backdrop-blur border border-slate-800 rounded-xl p-3 text-[11px] space-y-1.5 font-mono text-slate-300 hidden md:block">
+                    <div class="text-[10px] text-slate-400 uppercase font-bold mb-1">Execution Node Key</div>
+                    <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span> 1. Plan / Decompose</div>
+                    <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> 2. Read / Inspect</div>
+                    <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-purple-500"></span> 3. Write / Edit File</div>
+                    <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-cyan-500"></span> 4. Bash / Exec</div>
+                    <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> 5. Verify Success</div>
+                    <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span> 6. Error / Fix Loop</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- TWO COLUMN LAYOUT: SESSION LOGS & HARDWARE TELEMETRY -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            <!-- LIVE TERMINAL LOG STREAM (2 COLUMNS) -->
+            <section class="lg:col-span-2 bg-slate-900/80 border border-slate-800 rounded-2xl flex flex-col h-[480px] overflow-hidden shadow-xl">
+                <!-- Log Header & Filter Tabs -->
+                <div class="px-5 py-3.5 bg-slate-900 border-b border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div class="flex items-center space-x-2">
+                        <i class="ph-bold ph-terminal text-slate-400"></i>
+                        <span class="text-sm font-semibold text-slate-200">OpenCode Execution Event Stream</span>
+                    </div>
+
+                    <!-- Log Filters -->
+                    <div class="flex items-center gap-1.5 text-xs bg-slate-950 p-1 rounded-xl border border-slate-800">
+                        <button onclick="setLogFilter('ALL')" id="filterBtnALL" class="px-2.5 py-1 rounded-lg font-medium bg-slate-800 text-white transition-colors">All</button>
+                        <button onclick="setLogFilter('TOOLS')" id="filterBtnTOOLS" class="px-2.5 py-1 rounded-lg font-medium text-slate-400 hover:text-white transition-colors">Tools</button>
+                        <button onclick="setLogFilter('EDITS')" id="filterBtnEDITS" class="px-2.5 py-1 rounded-lg font-medium text-slate-400 hover:text-white transition-colors">Edits</button>
+                        <button onclick="setLogFilter('ERRORS')" id="filterBtnERRORS" class="px-2.5 py-1 rounded-lg font-medium text-slate-400 hover:text-white transition-colors">Errors</button>
+                    </div>
+                </div>
+
+                <!-- Log Output Console -->
+                <div id="terminalConsole" class="flex-1 p-4 font-mono text-xs overflow-y-auto space-y-2 bg-slate-950/90 text-slate-300">
+                    <!-- Logs injected dynamically -->
+                </div>
+
+                <!-- Log Footer Control -->
+                <div class="p-3 bg-slate-900/90 border-t border-slate-800 flex items-center justify-between gap-3 text-xs">
+                    <div class="flex items-center gap-2 text-slate-400">
+                        <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                        <span>Listening on socket <code class="text-slate-300">localhost:4096</code></span>
+                    </div>
+                    <button onclick="clearLogs()" class="px-2.5 py-1 text-xs font-medium text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors border border-slate-700">
+                        Clear Console
+                    </button>
+                </div>
+            </section>
+
+            <!-- HARDWARE & VRAM GAUGES (1 COLUMN) -->
+            <section class="space-y-6">
+                <!-- VRAM Gauge Card -->
+                <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center space-x-2">
+                            <i class="ph-bold ph-gauge text-indigo-400 text-xl"></i>
+                            <h2 class="text-sm font-bold text-slate-200 uppercase tracking-wide">VRAM / Ollama Memory</h2>
+                        </div>
+                        <span class="text-xs font-mono text-slate-400" id="vramText">5.4 / 8.0 GB</span>
+                    </div>
+
+                    <!-- Progress Bar -->
+                    <div class="w-full bg-slate-950 h-3 rounded-full overflow-hidden p-0.5 border border-slate-800 mb-4">
+                        <div id="vramBar" class="bg-gradient-to-r from-indigo-500 to-purple-500 h-full rounded-full transition-all duration-500" style="width: 67.5%"></div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3 text-xs">
+                        <div class="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800">
+                            <span class="text-slate-400 block text-[10px] uppercase font-semibold">Active Model</span>
+                            <span class="font-mono font-semibold text-slate-200 text-xs truncate block" id="activeModelName">qwen2.5-coder:7b</span>
+                        </div>
+                        <div class="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800">
+                            <span class="text-slate-400 block text-[10px] uppercase font-semibold">KV Cache RAM</span>
+                            <span class="font-mono font-semibold text-indigo-300 text-xs block" id="kvCacheVal">1.4 GB (Q4_0)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Generation Speed & Context Utilization -->
+                <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center space-x-2">
+                            <i class="ph-bold ph-lightning text-amber-400 text-xl"></i>
+                            <h2 class="text-sm font-bold text-slate-200 uppercase tracking-wide">Performance Metrics</h2>
+                        </div>
+                        <span id="tokenSpeedVal" class="text-sm font-mono font-extrabold text-amber-400">38.4 t/s</span>
+                    </div>
+
+                    <div class="space-y-3">
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-slate-400">Inference Throughput</span>
+                                <span class="text-slate-300 font-mono">Optimal</span>
+                            </div>
+                            <div class="w-full bg-slate-950 h-2 rounded-full overflow-hidden">
+                                <div id="speedBar" class="bg-amber-400 h-full rounded-full transition-all duration-300" style="width: 64%"></div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-slate-400">Context Window Utilization</span>
+                                <span id="contextText" class="text-slate-300 font-mono">8,412 / 16,384 tokens</span>
+                            </div>
+                            <div class="w-full bg-slate-950 h-2 rounded-full overflow-hidden">
+                                <div id="contextBar" class="bg-emerald-500 h-full rounded-full transition-all duration-300" style="width: 51%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- BRIEF CONCEPTS & ARCHITECTURE SECTION -->
+        <section class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 shadow-xl">
+            <div class="flex items-center gap-2 mb-4 border-b border-slate-800 pb-3">
+                <i class="ph-bold ph-tree-structure text-emerald-400 text-xl"></i>
+                <h2 class="text-base font-bold text-white">Concise Architecture & Operational Flow</h2>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Concept 1 -->
+                <div class="bg-slate-950/50 p-4 rounded-xl border border-slate-800/80">
+                    <div class="flex items-center gap-2 text-emerald-400 font-semibold text-sm mb-2">
+                        <span class="w-6 h-6 rounded-lg bg-emerald-500/10 flex items-center justify-center text-xs">1</span>
+                        Ollama REST Engine
+                    </div>
+                    <p class="text-xs text-slate-400 leading-relaxed">
+                        Serves GGUF weights on <code class="text-slate-200 bg-slate-800 px-1 rounded">localhost:11434</code> via an OpenAI-compatible API. Keeps model weights pinned in VRAM to eliminate reloading overhead.
+                    </p>
+                </div>
+
+                <!-- Concept 2 -->
+                <div class="bg-slate-950/50 p-4 rounded-xl border border-slate-800/80">
+                    <div class="flex items-center gap-2 text-purple-400 font-semibold text-sm mb-2">
+                        <span class="w-6 h-6 rounded-lg bg-purple-500/10 flex items-center justify-center text-xs">2</span>
+                        OpenCode Agent Loop
+                    </div>
+                    <p class="text-xs text-slate-400 leading-relaxed">
+                        Executes structured state loops: <code class="text-slate-200 bg-slate-800 px-1 rounded">Plan &rarr; Tool Exec &rarr; Evaluate</code>. Delegates tasks to specialized subagents like <code class="text-purple-300">Planner</code> and <code class="text-purple-300">TDD Guide</code>.
+                    </p>
+                </div>
+
+                <!-- Concept 3 -->
+                <div class="bg-slate-950/50 p-4 rounded-xl border border-slate-800/80">
+                    <div class="flex items-center gap-2 text-indigo-400 font-semibold text-sm mb-2">
+                        <span class="w-6 h-6 rounded-lg bg-indigo-500/10 flex items-center justify-center text-xs">3</span>
+                        KV Cache RAM Allocation
+                    </div>
+                    <p class="text-xs text-slate-400 leading-relaxed">
+                        Reserves dynamic VRAM space for prompt attention state across long tool interaction chains, preventing RAM fragmentation on 8GB/16GB setups.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- INTERACTIVE JAVASCRIPT & THREE.JS ENGINE -->
+    <script>
+        // Global Application State
+        let isLive = true;
+        let autoRotate = true;
+        let activeLogFilter = 'ALL';
+        let activeStepIndex = 0;
+
+        let metricData = {
+            totalCalls: 1420,
+            successes: 1382,
+            failures: 38,
+            edits: 486,
+            bash: 896
+        };
+
+        const logsStore = [
+            { type: 'SUCCESS', tool: 'write_file', target: 'src/components/Header.tsx', msg: 'Updated component layout diff', cat: 'EDITS' },
+            { type: 'EXEC', tool: 'bash', target: 'npm test', msg: 'Executing Playwright test suite...', cat: 'TOOLS' },
+            { type: 'SUCCESS', tool: 'bash', target: 'npm test', msg: 'PASSED: 24 tests green (1.1s)', cat: 'TOOLS' },
+            { type: 'FAIL', tool: 'bash', target: 'cargo check', msg: 'Exit code 101: missing trait implementation', cat: 'ERRORS' },
+            { type: 'SUCCESS', tool: 'edit_file', target: 'src/lib.rs', msg: 'Patched missing trait definition', cat: 'EDITS' },
+            { type: 'EXEC', tool: 'read_file', target: 'AGENTS.md', msg: 'Inspecting agent harness rules', cat: 'TOOLS' }
+        ];
+
+        // Three.js Scene Variables
+        let scene, camera, renderer, controls;
+        let nodeObjects = [];
+        let pathCurves = [];
+        let pulseParticles = [];
+        const container = document.getElementById('threeCanvas');
+
+        // Node Configuration in 3D Space
+        const graphNodes = [
+            { id: 0, name: '1. Plan / Decompose', agent: 'Planner', color: 0x3b82f6, pos: [-12, 4, 0], desc: 'Decomposes task into step-by-step subagent execution goals.', status: 'Active Goal' },
+            { id: 1, name: '2. Read / Inspect', agent: 'Architect', color: 0xf59e0b, pos: [-6, -2, 6], desc: 'Reads local context, files, and AGENTS.md rules.', status: 'Completed' },
+            { id: 2, name: '3. Write / Edit File', agent: 'Build Agent', color: 0xa855f7, pos: [0, 5, -4], desc: 'Applies diff patches to code files in project workspace.', status: 'Completed' },
+            { id: 3, name: '4. Bash / Exec', agent: 'TDD Guide', color: 0x06b6d4, pos: [6, -3, 4], desc: 'Runs terminal verification commands and linter tests.', status: 'In Progress' },
+            { id: 4, name: '5. Verify Success', agent: 'Code Reviewer', color: 0x22c55e, pos: [12, 3, -2], desc: 'Confirms fix against criteria and updates progress state.', status: 'Pending' },
+            { id: 5, name: '6. Error / Fix Loop', agent: 'Build Error Resolver', color: 0xf43f5e, pos: [2, -6, -8], desc: 'Triggered upon build failure to repair compilation errors.', status: 'Standby' }
+        ];
+
+        // Transitions defining the directed execution paths
+        const transitions = [
+            { from: 0, to: 1 },
+            { from: 1, to: 2 },
+            { from: 2, to: 3 },
+            { from: 3, to: 4 },
+            { from: 3, to: 5 },
+            { from: 5, to: 2 }
+        ];
+
+        window.onload = function() {
+            init3DScene();
+            seedConsoleLogs();
+            startTelemetryLoop();
+            updateNodeDetailBox(graphNodes[0]);
+        };
+
+        function init3DScene() {
+            // Scene & Camera
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x020617, 0.025);
+
+            camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+            camera.position.set(0, 10, 32);
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            container.appendChild(renderer.domElement);
+
+            // Orbit Controls
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+
+            const pointLight = new THREE.PointLight(0x22c55e, 1.5, 100);
+            pointLight.position.set(10, 20, 15);
+            scene.add(pointLight);
+
+            // Grid & Background Elements
+            const gridHelper = new THREE.GridHelper(50, 25, 0x1e293b, 0x0f172a);
+            gridHelper.position.y = -8;
+            scene.add(gridHelper);
+
+            // Render Nodes
+            graphNodes.forEach((node) => {
+                const group = new THREE.Group();
+                group.position.set(...node.pos);
+
+                // Core Sphere
+                const geometry = new THREE.SphereGeometry(1.2, 32, 32);
+                const material = new THREE.MeshStandardMaterial({
+                    color: node.color,
+                    roughness: 0.2,
+                    metalness: 0.5,
+                    emissive: node.color,
+                    emissiveIntensity: 0.3
+                });
+                const sphere = new THREE.Mesh(geometry, material);
+                group.add(sphere);
+
+                // Pulsing Outer Ring
+                const ringGeo = new THREE.RingGeometry(1.6, 1.8, 32);
+                const ringMat = new THREE.MeshBasicMaterial({ color: node.color, side: THREE.DoubleSide, transparent: true, opacity: 0.5 });
+                const ring = new THREE.Mesh(ringGeo, ringMat);
+                ring.rotation.x = Math.PI / 2;
+                group.add(ring);
+
+                scene.add(group);
+
+                nodeObjects.push({
+                    id: node.id,
+                    mesh: sphere,
+                    ring: ring,
+                    data: node
+                });
+            });
+
+            // Render Path Splines & Energy Particles
+            transitions.forEach((trans) => {
+                const startPos = new THREE.Vector3(...graphNodes[trans.from].pos);
+                const endPos = new THREE.Vector3(...graphNodes[trans.to].pos);
+
+                // Curve Midpoint
+                const midPos = new THREE.Vector3().addVectors(startPos, endPos).multiplyScalar(0.5);
+                midPos.y += 3; // Curve upwards
+
+                const curve = new THREE.QuadraticBezierCurve3(startPos, midPos, endPos);
+                pathCurves.push(curve);
+
+                // Tube Geometry for Spline
+                const tubeGeo = new THREE.TubeGeometry(curve, 32, 0.12, 8, false);
+                const tubeMat = new THREE.MeshStandardMaterial({
+                    color: 0x334155,
+                    transparent: true,
+                    opacity: 0.6
+                });
+                const tube = new THREE.Mesh(tubeGeo, tubeMat);
+                scene.add(tube);
+
+                // Glowing Pulse Particle
+                const particleGeo = new THREE.SphereGeometry(0.3, 16, 16);
+                const particleMat = new THREE.MeshBasicMaterial({ color: 0x22c55e });
+                const particle = new THREE.Mesh(particleGeo, particleMat);
+                scene.add(particle);
+
+                pulseParticles.push({
+                    mesh: particle,
+                    curve: curve,
+                    progress: Math.random() // Start offset
+                });
+            });
+
+            // Window Resize Listener
+            window.addEventListener('resize', onWindowResize);
+
+            // Start Animation Loop
+            animate3D();
+        }
+
+        function animate3D() {
+            requestAnimationFrame(animate3D);
+
+            // Move Energy Particles Along Splines
+            pulseParticles.forEach((p) => {
+                p.progress += 0.008;
+                if (p.progress > 1) p.progress = 0;
+                const point = p.curve.getPoint(p.progress);
+                p.mesh.position.copy(point);
+            });
+
+            // Rotate Node Rings
+            nodeObjects.forEach((n) => {
+                n.ring.rotation.z += 0.01;
+            });
+
+            // Auto Rotation
+            if (autoRotate) {
+                scene.rotation.y += 0.002;
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        function triggerStepSimulation() {
+            activeStepIndex = (activeStepIndex + 1) % graphNodes.length;
+            const currentNode = graphNodes[activeStepIndex];
+
+            // Update Detail Box & Subagent Badge
+            updateNodeDetailBox(currentNode);
+            document.getElementById('activeAgentBadge').innerText = `Agent: ${currentNode.agent}`;
+
+            // Pulse Camera to target node
+            const targetPos = currentNode.pos;
+            nodeObjects[activeStepIndex].mesh.scale.set(1.4, 1.4, 1.4);
+            setTimeout(() => {
+                nodeObjects[activeStepIndex].mesh.scale.set(1.0, 1.0, 1.0);
+            }, 300);
+
+            // Inject Event
+            appendLog('STEP', currentNode.agent, `Transitioned to [${currentNode.name}]`, 'EXEC', 'TOOLS');
+        }
+
+        function updateNodeDetailBox(node) {
+            document.getElementById('nodeDetailTitle').innerText = node.name;
+            document.getElementById('nodeDetailDesc').innerText = node.desc;
+            document.getElementById('nodeDetailStatus').innerText = node.status;
+            document.getElementById('nodePayloadText').innerText = `Payload: { agent: "${node.agent}", status: "${node.status}" }`;
+        }
+
+        function toggleAutoRotate() {
+            autoRotate = !autoRotate;
+            const btn = document.getElementById('rotateBtn');
+            btn.innerText = autoRotate ? "Auto-Rotate: ON" : "Auto-Rotate: OFF";
+        }
+
+        function reset3DView() {
+            scene.rotation.y = 0;
+            camera.position.set(0, 10, 32);
+            controls.reset();
+        }
+
+        function toggleSimulation() {
+            isLive = !isLive;
+            const badge = document.getElementById('connectionStatusBadge');
+            const dot = document.getElementById('statusDot');
+            const pulse = document.getElementById('statusPingPulse');
+            const label = document.getElementById('statusLabel');
+            const pingTime = document.getElementById('statusPingTime');
+
+            if (isLive) {
+                badge.className = "flex items-center gap-3 px-4 py-2 rounded-xl border transition-all duration-300 bg-emerald-950/60 border-emerald-500/40 text-emerald-300";
+                dot.className = "relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500";
+                pulse.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75";
+                label.innerText = "LIVE CONNECTION";
+                pingTime.innerText = "11434 & 4096 ONLINE (14ms)";
+            } else {
+                badge.className = "flex items-center gap-3 px-4 py-2 rounded-xl border transition-all duration-300 bg-amber-950/60 border-amber-500/40 text-amber-300";
+                dot.className = "relative inline-flex rounded-full h-3.5 w-3.5 bg-amber-500";
+                pulse.className = "hidden";
+                label.innerText = "OFFLINE / DEMO";
+                pingTime.innerText = "SIMULATING AGENT GRAPH";
+            }
+        }
+
+        function appendLog(type, tool, target, status, category) {
+            const consoleEl = document.getElementById('terminalConsole');
+            const timestamp = new Date().toLocaleTimeString();
+
+            let statusColor = "text-emerald-400 bg-emerald-500/10 border-emerald-500/20";
+            let icon = "ph-check-circle";
+
+            if (status === 'FAIL') {
+                statusColor = "text-rose-400 bg-rose-500/10 border-rose-500/20";
+                icon = "ph-x-circle";
+            } else if (status === 'EXEC') {
+                statusColor = "text-sky-400 bg-sky-500/10 border-sky-500/20";
+                icon = "ph-spinner animate-spin";
+            }
+
+            const logRow = document.createElement('div');
+            logRow.dataset.category = category || 'TOOLS';
+            logRow.className = "log-row flex flex-col sm:flex-row sm:items-center justify-between p-2 rounded-lg bg-slate-900/50 border border-slate-800/80 gap-2 hover:bg-slate-900 transition-colors";
+            
+            logRow.innerHTML = `
+                <div class="flex items-center space-x-2.5 overflow-hidden">
+                    <span class="text-slate-500 font-mono text-[10px] shrink-0">${timestamp}</span>
+                    <span class="px-2 py-0.5 rounded border text-[10px] font-bold font-mono uppercase flex items-center gap-1 ${statusColor}">
+                        <i class="ph-bold ${icon}"></i>
+                        ${status}
+                    </span>
+                    <span class="font-semibold text-slate-200 font-mono shrink-0">${tool}:</span>
+                    <span class="text-slate-400 truncate font-mono">${target}</span>
+                </div>
+                <span class="text-slate-500 text-[11px] italic shrink-0">${type}</span>
+            `;
+
+            consoleEl.appendChild(logRow);
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+            applyLogFilter();
+        }
+
+        function seedConsoleLogs() {
+            logsStore.forEach(log => {
+                appendLog('TOOL', log.tool, `${log.target} - ${log.msg}`, log.type, log.cat);
+            });
+        }
+
+        function setLogFilter(filter) {
+            activeLogFilter = filter;
+            ['ALL', 'TOOLS', 'EDITS', 'ERRORS'].forEach(f => {
+                const btn = document.getElementById(`filterBtn${f}`);
+                if (f === filter) {
+                    btn.className = "px-2.5 py-1 rounded-lg font-medium bg-slate-800 text-white transition-colors";
+                } else {
+                    btn.className = "px-2.5 py-1 rounded-lg font-medium text-slate-400 hover:text-white transition-colors";
+                }
+            });
+            applyLogFilter();
+        }
+
+        function applyLogFilter() {
+            const rows = document.querySelectorAll('.log-row');
+            rows.forEach(row => {
+                if (activeLogFilter === 'ALL' || row.dataset.category === activeLogFilter) {
+                    row.style.display = 'flex';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        }
+
+        function clearLogs() {
+            document.getElementById('terminalConsole').innerHTML = '';
+        }
+
+        function startTelemetryLoop() {
+            setInterval(() => {
+                if (!isLive) return;
+
+                // Fluctuate Gauges
+                const speedVal = (34.0 + (Math.random() * 8.0)).toFixed(1);
+                document.getElementById('tokenSpeedVal').innerText = `${speedVal} t/s`;
+                document.getElementById('speedBar').style.width = `${(speedVal / 50) * 100}%`;
+
+                const vramVal = (5.2 + (Math.random() * 0.4)).toFixed(1);
+                document.getElementById('vramText').innerText = `${vramVal} / 8.0 GB`;
+
+                if (Math.random() > 0.7) {
+                    triggerStepSimulation();
+                }
+            }, 4000);
+        }
+    </script>
+</body>
+</html>

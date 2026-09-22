@@ -1,0 +1,1 @@
+{"name":"overapp","version":"1.0.0","description":"Local air-gapped Projects OverApp & Command Center","main":"overapp-daemon.js","scripts":{"start":"node overapp-daemon.js","dev":"node --watch overapp-daemon.js"},"dependencies":{"express":"^4.22.3"}}

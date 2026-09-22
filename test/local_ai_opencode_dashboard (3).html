@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-950 text-slate-100">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Local AI & OpenCode Dashboard</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0fdf4',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            900: '#14532d',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'Fira Code', 'Consolas', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+        /* Custom scrollbar for logs and dark elements */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(51, 65, 85, 0.8);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(71, 85, 105, 1);
+        }
+    </style>
+</head>
+<body class="h-full font-sans antialiased bg-slate-950 text-slate-200 flex flex-col overflow-x-hidden">
+
+    <!-- TOP HIGH-VISIBILITY CONNECTION BANNER -->
+    <header class="bg-slate-900/90 backdrop-blur border-b border-slate-800 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+            <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
+                <!-- Branding -->
+                <div class="flex items-center space-x-3">
+                    <div class="p-2 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400">
+                        <i class="ph-bold ph-cpu text-2xl"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2">
+                            Local AI Dashboard
+                            <span class="text-xs font-normal px-2 py-0.5 bg-slate-800 border border-slate-700 text-slate-400 rounded-full">v2.4.0</span>
+                        </h1>
+                        <p class="text-xs text-slate-400">Ollama & OpenCode Engine Monitor</p>
+                    </div>
+                </div>
+
+                <!-- LIVE vs OFFLINE Prominent Status Bar -->
+                <div class="flex items-center gap-3 w-full sm:w-auto justify-end">
+                    <div id="connectionStatusBadge" class="flex items-center gap-3 px-4 py-2 rounded-xl border transition-all duration-300 bg-emerald-950/60 border-emerald-500/40 text-emerald-300">
+                        <span class="relative flex h-3.5 w-3.5">
+                            <span id="statusPingPulse" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span id="statusDot" class="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500"></span>
+                        </span>
+                        <div class="flex flex-col">
+                            <span id="statusLabel" class="text-xs font-extrabold uppercase tracking-wider">LIVE SESSION</span>
+                            <span id="statusPingTime" class="text-[10px] text-emerald-400/80 font-mono">11434 & 4096 ONLINE (12ms)</span>
+                        </div>
+                    </div>
+
+                    <!-- Simulation Toggle Switch -->
+                    <button onclick="toggleSimulation()" title="Toggle simulated live traffic" class="p-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-slate-300 transition-colors flex items-center gap-2 text-xs font-medium">
+                        <i class="ph-bold ph-arrows-clockwise text-base"></i>
+                        <span class="hidden md:inline">Simulate State</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN CONTAINER -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        <!-- METRICS COUNTERS GRID -->
+        <section class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            <!-- Total Tool Calls -->
+            <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between hover:border-slate-700 transition-colors">
+                <div class="flex items-center justify-between text-slate-400">
+                    <span class="text-xs font-medium uppercase tracking-wider">Total Tool Calls</span>
+                    <i class="ph-bold ph-wrench text-slate-400 text-lg"></i>
+                </div>
+                <div class="mt-3 flex items-baseline justify-between">
+                    <span id="metricTotalCalls" class="text-2xl sm:text-3xl font-extrabold text-white font-mono">1,248</span>
+                    <span class="text-xs text-emerald-400 flex items-center font-mono">+14/m</span>
+                </div>
+                <div class="w-full bg-slate-800 h-1.5 rounded-full mt-3 overflow-hidden">
+                    <div id="progressCalls" class="bg-emerald-500 h-full rounded-full" style="width: 78%"></div>
+                </div>
+            </div>
+
+            <!-- Successful Calls -->
+            <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between hover:border-slate-700 transition-colors">
+                <div class="flex items-center justify-between text-slate-400">
+                    <span class="text-xs font-medium uppercase tracking-wider">Successful</span>
+                    <i class="ph-bold ph-check-circle text-emerald-400 text-lg"></i>
+                </div>
+                <div class="mt-3 flex items-baseline justify-between">
+                    <span id="metricSuccess" class="text-2xl sm:text-3xl font-extrabold text-emerald-400 font-mono">1,212</span>
+                    <span id="metricSuccessPct" class="text-xs font-mono font-bold text-emerald-400">97.1%</span>
+                </div>
+                <div class="w-full bg-slate-800 h-1.5 rounded-full mt-3 overflow-hidden">
+                    <div id="progressSuccess" class="bg-emerald-500 h-full rounded-full" style="width: 97.1%"></div>
+                </div>
+            </div>
+
+            <!-- Failed Calls -->
+            <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between hover:border-slate-700 transition-colors">
+                <div class="flex items-center justify-between text-slate-400">
+                    <span class="text-xs font-medium uppercase tracking-wider">Failures</span>
+                    <i class="ph-bold ph-x-circle text-rose-400 text-lg"></i>
+                </div>
+                <div class="mt-3 flex items-baseline justify-between">
+                    <span id="metricFails" class="text-2xl sm:text-3xl font-extrabold text-rose-400 font-mono">36</span>
+                    <span id="metricFailPct" class="text-xs font-mono font-bold text-rose-400">2.9%</span>
+                </div>
+                <div class="w-full bg-slate-800 h-1.5 rounded-full mt-3 overflow-hidden">
+                    <div id="progressFails" class="bg-rose-500 h-full rounded-full" style="width: 2.9%"></div>
+                </div>
+            </div>
+
+            <!-- File Edits -->
+            <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between hover:border-slate-700 transition-colors">
+                <div class="flex items-center justify-between text-slate-400">
+                    <span class="text-xs font-medium uppercase tracking-wider">File Edits</span>
+                    <i class="ph-bold ph-file-code text-sky-400 text-lg"></i>
+                </div>
+                <div class="mt-3 flex items-baseline justify-between">
+                    <span id="metricEdits" class="text-2xl sm:text-3xl font-extrabold text-sky-400 font-mono">412</span>
+                    <span class="text-xs text-slate-400 font-mono">patches</span>
+                </div>
+                <div class="w-full bg-slate-800 h-1.5 rounded-full mt-3 overflow-hidden">
+                    <div id="progressEdits" class="bg-sky-500 h-full rounded-full" style="width: 62%"></div>
+                </div>
+            </div>
+
+            <!-- Bash Executions -->
+            <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between hover:border-slate-700 transition-colors col-span-2 sm:col-span-1">
+                <div class="flex items-center justify-between text-slate-400">
+                    <span class="text-xs font-medium uppercase tracking-wider">Bash Cmds</span>
+                    <i class="ph-bold ph-terminal-window text-amber-400 text-lg"></i>
+                </div>
+                <div class="mt-3 flex items-baseline justify-between">
+                    <span id="metricBash" class="text-2xl sm:text-3xl font-extrabold text-amber-400 font-mono">836</span>
+                    <span class="text-xs text-slate-400 font-mono">runs</span>
+                </div>
+                <div class="w-full bg-slate-800 h-1.5 rounded-full mt-3 overflow-hidden">
+                    <div id="progressBash" class="bg-amber-500 h-full rounded-full" style="width: 84%"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- TWO COLUMN LAYOUT: SESSION LOGS & RESOURCE GAUGES -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            <!-- LIVE SESSION TERMINAL LOGS (2 COLUMNS) -->
+            <section class="lg:col-span-2 bg-slate-900/80 border border-slate-800 rounded-2xl flex flex-col h-[520px] overflow-hidden shadow-xl">
+                <!-- Log Header -->
+                <div class="px-5 py-3.5 bg-slate-900 border-b border-slate-800 flex items-center justify-between">
+                    <div class="flex items-center space-x-2">
+                        <div class="flex space-x-1.5 mr-2">
+                            <span class="w-3 h-3 rounded-full bg-rose-500/80 inline-block"></span>
+                            <span class="w-3 h-3 rounded-full bg-amber-500/80 inline-block"></span>
+                            <span class="w-3 h-3 rounded-full bg-emerald-500/80 inline-block"></span>
+                        </div>
+                        <i class="ph-bold ph-terminal text-slate-400"></i>
+                        <span class="text-sm font-semibold text-slate-200">OpenCode Live Session Stream</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="clearLogs()" class="px-2.5 py-1 text-xs font-medium text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors">
+                            Clear
+                        </button>
+                        <button onclick="toggleAutoScroll()" id="autoScrollBtn" class="px-2.5 py-1 text-xs font-medium text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 rounded-lg transition-colors">
+                            Auto-scroll: ON
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Log Output Console -->
+                <div id="terminalConsole" class="flex-1 p-4 font-mono text-xs overflow-y-auto space-y-2 bg-slate-950/90 text-slate-300">
+                    <!-- Logs injected dynamically via Javascript -->
+                </div>
+
+                <!-- Log Footer Control / Simulator -->
+                <div class="p-3 bg-slate-900/90 border-t border-slate-800 flex items-center justify-between gap-3 text-xs">
+                    <div class="flex items-center gap-2 text-slate-400">
+                        <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                        <span>Listening on socket port <code class="text-slate-300">4096</code></span>
+                    </div>
+                    <button onclick="injectSimulatedLog()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg font-medium transition-colors border border-slate-700 flex items-center gap-1.5">
+                        <i class="ph-bold ph-plus-circle"></i> Trigger Simulated Tool Call
+                    </button>
+                </div>
+            </section>
+
+            <!-- HARDWARE & VRAM GAUGES (1 COLUMN) -->
+            <section class="space-y-6">
+                <!-- VRAM Gauge Card -->
+                <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center space-x-2">
+                            <i class="ph-bold ph-gauge text-indigo-400 text-xl"></i>
+                            <h2 class="text-sm font-bold text-slate-200 uppercase tracking-wide">VRAM / GPU Memory</h2>
+                        </div>
+                        <span class="text-xs font-mono text-slate-400" id="vramText">12.8 / 16.0 GB</span>
+                    </div>
+
+                    <!-- Progress Bar -->
+                    <div class="w-full bg-slate-950 h-3 rounded-full overflow-hidden p-0.5 border border-slate-800 mb-4">
+                        <div id="vramBar" class="bg-gradient-to-r from-indigo-500 to-purple-500 h-full rounded-full transition-all duration-500" style="width: 80%"></div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3 text-xs">
+                        <div class="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800">
+                            <span class="text-slate-400 block text-[10px] uppercase font-semibold">Active Model</span>
+                            <span class="font-mono font-semibold text-slate-200 text-xs truncate block" id="activeModelName">qwen2.5-coder:14b</span>
+                        </div>
+                        <div class="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800">
+                            <span class="text-slate-400 block text-[10px] uppercase font-semibold">KV Cache RAM</span>
+                            <span class="font-mono font-semibold text-indigo-300 text-xs block" id="kvCacheVal">3.2 GB (Q4_0)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- System RAM & Token Speed Card -->
+                <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center space-x-2">
+                            <i class="ph-bold ph-lightning text-amber-400 text-xl"></i>
+                            <h2 class="text-sm font-bold text-slate-200 uppercase tracking-wide">Inference Performance</h2>
+                        </div>
+                        <span id="tokenSpeedVal" class="text-sm font-mono font-extrabold text-amber-400">42.5 t/s</span>
+                    </div>
+
+                    <div class="space-y-3">
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-slate-400">Generation Speed</span>
+                                <span class="text-slate-300 font-mono">Optimal</span>
+                            </div>
+                            <div class="w-full bg-slate-950 h-2 rounded-full overflow-hidden">
+                                <div id="speedBar" class="bg-amber-400 h-full rounded-full transition-all duration-300" style="width: 72%"></div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-slate-400">System RAM Allocation</span>
+                                <span id="ramText" class="text-slate-300 font-mono">18.4 / 32.0 GB</span>
+                            </div>
+                            <div class="w-full bg-slate-950 h-2 rounded-full overflow-hidden">
+                                <div id="ramBar" class="bg-sky-500 h-full rounded-full transition-all duration-300" style="width: 57%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tool Exec Distribution -->
+                <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                    <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Tool Breakdown</h2>
+                    <div class="space-y-2">
+                        <div class="flex items-center justify-between text-xs">
+                            <span class="flex items-center gap-2 text-slate-300">
+                                <span class="w-2 h-2 rounded-full bg-amber-400"></span> Bash Executions
+                            </span>
+                            <span class="font-mono text-slate-400">67%</span>
+                        </div>
+                        <div class="flex items-center justify-between text-xs">
+                            <span class="flex items-center gap-2 text-slate-300">
+                                <span class="w-2 h-2 rounded-full bg-sky-400"></span> File Write/Patch
+                            </span>
+                            <span class="font-mono text-slate-400">25%</span>
+                        </div>
+                        <div class="flex items-center justify-between text-xs">
+                            <span class="flex items-center gap-2 text-slate-300">
+                                <span class="w-2 h-2 rounded-full bg-indigo-400"></span> Web Search / Read
+                            </span>
+                            <span class="font-mono text-slate-400">8%</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- BRIEF CONCEPTS & ARCHITECTURE SECTION -->
+        <section class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 shadow-xl">
+            <div class="flex items-center gap-2 mb-4 border-b border-slate-800 pb-3">
+                <i class="ph-bold ph-tree-structure text-emerald-400 text-xl"></i>
+                <h2 class="text-base font-bold text-white">Concise Architecture & Operational Flow</h2>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Concept 1 -->
+                <div class="bg-slate-950/50 p-4 rounded-xl border border-slate-800/80">
+                    <div class="flex items-center gap-2 text-emerald-400 font-semibold text-sm mb-2">
+                        <span class="w-6 h-6 rounded-lg bg-emerald-500/10 flex items-center justify-center text-xs">1</span>
+                        Ollama Inference Core
+                    </div>
+                    <p class="text-xs text-slate-400 leading-relaxed">
+                        Exposes a local OpenAI-compatible REST server at <code class="text-slate-200 bg-slate-800 px-1 rounded">localhost:11434</code>. Loads quantized GGUF weights directly into GPU VRAM for high token throughput.
+                    </p>
+                </div>
+
+                <!-- Concept 2 -->
+                <div class="bg-slate-950/50 p-4 rounded-xl border border-slate-800/80">
+                    <div class="flex items-center gap-2 text-sky-400 font-semibold text-sm mb-2">
+                        <span class="w-6 h-6 rounded-lg bg-sky-500/10 flex items-center justify-center text-xs">2</span>
+                        OpenCode Agent Loop
+                    </div>
+                    <p class="text-xs text-slate-400 leading-relaxed">
+                        An autonomous <code class="text-slate-200 bg-slate-800 px-1 rounded">Plan &rarr; Execute &rarr; Evaluate</code> state machine. Formats user prompts with structured system schemas, allowing the LLM to emit tool JSON payloads.
+                    </p>
+                </div>
+
+                <!-- Concept 3 -->
+                <div class="bg-slate-950/50 p-4 rounded-xl border border-slate-800/80">
+                    <div class="flex items-center gap-2 text-amber-400 font-semibold text-sm mb-2">
+                        <span class="w-6 h-6 rounded-lg bg-amber-500/10 flex items-center justify-center text-xs">3</span>
+                        KV Cache & VRAM Management
+                    </div>
+                    <p class="text-xs text-slate-400 leading-relaxed">
+                        Reserves VRAM for context attention tokens. Large dynamic windows require memory management to prevent OOM errors during lengthy tool execution loops.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- INTERACTIVE JAVASCRIPT ENGINE -->
+    <script>
+        // State Variables
+        let isLive = true;
+        let autoScroll = true;
+        let metricData = {
+            totalCalls: 1248,
+            successes: 1212,
+            failures: 36,
+            edits: 412,
+            bash: 836
+        };
+
+        const simulatedLogs = [
+            { type: 'SUCCESS', tool: 'write_file', target: 'src/components/Header.tsx', msg: 'Updated component rendering logic (24 lines replaced)' },
+            { type: 'EXEC', tool: 'bash', target: 'npm test', msg: 'Executing test suite in background...' },
+            { type: 'SUCCESS', tool: 'bash', target: 'npm test', msg: 'PASSED: 18 tests passed, 0 failed (1.2s)' },
+            { type: 'FAIL', tool: 'bash', target: 'cargo build', msg: 'Exit code 101: error[E0425]: cannot find value `x` in this scope' },
+            { type: 'SUCCESS', tool: 'edit_file', target: 'src/main.rs', msg: 'Patched line 42 to import variable `x`' },
+            { type: 'EXEC', tool: 'web_search', target: 'Ollama API docs', msg: 'Querying localhost documentation context' }
+        ];
+
+        // Initialize App
+        window.onload = function() {
+            seedInitialLogs();
+            startSimulatedTelemetry();
+        };
+
+        // Toggle Live vs Offline Simulation
+        function toggleSimulation() {
+            isLive = !isLive;
+            const badge = document.getElementById('connectionStatusBadge');
+            const dot = document.getElementById('statusDot');
+            const pulse = document.getElementById('statusPingPulse');
+            const label = document.getElementById('statusLabel');
+            const pingTime = document.getElementById('statusPingTime');
+
+            if (isLive) {
+                badge.className = "flex items-center gap-3 px-4 py-2 rounded-xl border transition-all duration-300 bg-emerald-950/60 border-emerald-500/40 text-emerald-300";
+                dot.className = "relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500";
+                pulse.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75";
+                label.innerText = "LIVE SESSION";
+                pingTime.innerText = "11434 & 4096 ONLINE (12ms)";
+                appendLog('SYSTEM', 'engine', 'Reconnected to local OpenCode telemetry endpoint', 'SUCCESS');
+            } else {
+                badge.className = "flex items-center gap-3 px-4 py-2 rounded-xl border transition-all duration-300 bg-amber-950/60 border-amber-500/40 text-amber-300";
+                dot.className = "relative inline-flex rounded-full h-3.5 w-3.5 bg-amber-500";
+                pulse.className = "hidden";
+                label.innerText = "OFFLINE / SIMULATED";
+                pingTime.innerText = "LOCAL PORT DISCONNECTED";
+                appendLog('SYSTEM', 'engine', 'Telemetry connection paused by user', 'FAIL');
+            }
+        }
+
+        // Add Log to Terminal
+        function appendLog(type, tool, target, status) {
+            const consoleEl = document.getElementById('terminalConsole');
+            const timestamp = new Date().toLocaleTimeString();
+
+            let statusColor = "text-emerald-400 bg-emerald-500/10 border-emerald-500/20";
+            let icon = "ph-check-circle";
+
+            if (status === 'FAIL') {
+                statusColor = "text-rose-400 bg-rose-500/10 border-rose-500/20";
+                icon = "ph-x-circle";
+            } else if (status === 'EXEC') {
+                statusColor = "text-sky-400 bg-sky-500/10 border-sky-500/20";
+                icon = "ph-spinner animate-spin";
+            }
+
+            const logRow = document.createElement('div');
+            logRow.className = "flex flex-col sm:flex-row sm:items-center justify-between p-2 rounded-lg bg-slate-900/50 border border-slate-800/80 gap-2 hover:bg-slate-900 transition-colors";
+            
+            logRow.innerHTML = `
+                <div class="flex items-center space-x-2.5 overflow-hidden">
+                    <span class="text-slate-500 font-mono text-[10px] shrink-0">${timestamp}</span>
+                    <span class="px-2 py-0.5 rounded border text-[10px] font-bold font-mono uppercase flex items-center gap-1 ${statusColor}">
+                        <i class="ph-bold ${icon}"></i>
+                        ${status}
+                    </span>
+                    <span class="font-semibold text-slate-200 font-mono shrink-0">${tool}:</span>
+                    <span class="text-slate-400 truncate font-mono">${target}</span>
+                </div>
+                <span class="text-slate-500 text-[11px] italic shrink-0">${status === 'FAIL' ? 'Execution Error' : 'OK'}</span>
+            `;
+
+            consoleEl.appendChild(logRow);
+
+            if (autoScroll) {
+                consoleEl.scrollTop = consoleEl.scrollHeight;
+            }
+        }
+
+        // Seed Console with Initial Mock Data
+        function seedInitialLogs() {
+            simulatedLogs.forEach(log => {
+                appendLog('TOOL', log.tool, `${log.target} - ${log.msg}`, log.type);
+            });
+        }
+
+        // Inject Random Simulated Log Event
+        function injectSimulatedLog() {
+            const randomLog = simulatedLogs[Math.floor(Math.random() * simulatedLogs.length)];
+            
+            // Update Metrics
+            metricData.totalCalls++;
+            if (randomLog.type === 'FAIL') {
+                metricData.failures++;
+            } else {
+                metricData.successes++;
+            }
+
+            if (randomLog.tool.includes('file')) metricData.edits++;
+            if (randomLog.tool === 'bash') metricData.bash++;
+
+            updateMetricUI();
+            appendLog('TOOL', randomLog.tool, `${randomLog.target} - ${randomLog.msg}`, randomLog.type);
+        }
+
+        // Refresh UI Metric Displays
+        function updateMetricUI() {
+            document.getElementById('metricTotalCalls').innerText = metricData.totalCalls.toLocaleString();
+            document.getElementById('metricSuccess').innerText = metricData.successes.toLocaleString();
+            document.getElementById('metricFails').innerText = metricData.failures.toLocaleString();
+            document.getElementById('metricEdits').innerText = metricData.edits.toLocaleString();
+            document.getElementById('metricBash').innerText = metricData.bash.toLocaleString();
+
+            const successPct = ((metricData.successes / metricData.totalCalls) * 100).toFixed(1);
+            const failPct = ((metricData.failures / metricData.totalCalls) * 100).toFixed(1);
+
+            document.getElementById('metricSuccessPct').innerText = `${successPct}%`;
+            document.getElementById('metricFailPct').innerText = `${failPct}%`;
+
+            document.getElementById('progressSuccess').style.width = `${successPct}%`;
+            document.getElementById('progressFails').style.width = `${failPct}%`;
+        }
+
+        // Toggle Console Autoscroll
+        function toggleAutoScroll() {
+            autoScroll = !autoScroll;
+            const btn = document.getElementById('autoScrollBtn');
+            if (autoScroll) {
+                btn.className = "px-2.5 py-1 text-xs font-medium text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 rounded-lg transition-colors";
+                btn.innerText = "Auto-scroll: ON";
+            } else {
+                btn.className = "px-2.5 py-1 text-xs font-medium text-slate-400 bg-slate-800 border border-slate-700 rounded-lg transition-colors";
+                btn.innerText = "Auto-scroll: OFF";
+            }
+        }
+
+        // Clear Log Terminal
+        function clearLogs() {
+            document.getElementById('terminalConsole').innerHTML = '';
+        }
+
+        // Periodic Background Pulse Simulation
+        function startSimulatedTelemetry() {
+            setInterval(() => {
+                if (!isLive) return;
+
+                // Randomly fluctuate gauges
+                const vramVal = (12.4 + (Math.random() * 0.8)).toFixed(1);
+                document.getElementById('vramText').innerText = `${vramVal} / 16.0 GB`;
+                document.getElementById('vramBar').style.width = `${(vramVal / 16) * 100}%`;
+
+                const speedVal = (38.0 + (Math.random() * 8.0)).toFixed(1);
+                document.getElementById('tokenSpeedVal').innerText = `${speedVal} t/s`;
+                document.getElementById('speedBar').style.width = `${(speedVal / 60) * 100}%`;
+
+                // Occasionally trigger a automatic log entry
+                if (Math.random() > 0.65) {
+                    injectSimulatedLog();
+                }
+            }, 3500);
+        }
+    </script>
+</body>
+</html>

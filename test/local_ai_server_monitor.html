@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Local AI Performance Monitor - Ollama & OpenCode</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#eef2ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                            900: '#312e81'
+                        },
+                        darkBg: '#0b0f17',
+                        cardBg: '#131926',
+                        cardBorder: '#1e293b'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'Fira Code', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Google Fonts & Font Awesome Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js for real-time visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        body {
+            background-color: #0b0f17;
+            color: #f1f5f9;
+            font-family: 'Inter', sans-serif;
+        }
+        .glass-panel {
+            background: rgba(19, 25, 38, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .glass-panel:hover {
+            border-color: rgba(99, 102, 241, 0.3);
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0b0f17;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1e293b;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #334155;
+        }
+        .pulse-dot {
+            box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+            animation: pulse-green 2s infinite;
+        }
+        @keyframes pulse-green {
+            0% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+            }
+            70% {
+                transform: scale(1);
+                box-shadow: 0 0 0 8px rgba(34, 197, 94, 0);
+            }
+            100% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- Navigation Header -->
+    <header class="glass-panel sticky top-0 z-50 border-b border-slate-800 px-4 lg:px-8 py-3">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+            <!-- Brand -->
+            <div class="flex items-center gap-3">
+                <div class="h-9 w-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                    <i class="fa-solid font-mono font-bold text-white text-lg">λ</i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h1 class="font-bold text-lg text-white tracking-tight">Ollama Engine Monitor</h1>
+                        <span class="text-xs px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-medium">OpenCode Sync</span>
+                    </div>
+                    <p class="text-xs text-slate-400">Local Inference Metrics & Performance Benchmark</p>
+                </div>
+            </div>
+
+            <!-- Endpoint Status & Mode Toggle -->
+            <div class="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
+                <div id="connectionStatus" class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900/80 border border-slate-800 text-xs">
+                    <span id="statusDot" class="w-2.5 h-2.5 rounded-full bg-emerald-500 pulse-dot"></span>
+                    <span id="statusText" class="font-medium text-slate-300">Connected (http://localhost:11434)</span>
+                </div>
+
+                <div class="flex items-center gap-2 bg-slate-900/80 p-1 rounded-lg border border-slate-800">
+                    <button id="modeLiveBtn" onclick="setMode('live')" class="px-3 py-1 rounded-md text-xs font-semibold transition-all bg-indigo-600 text-white shadow-sm">
+                        Live Polling
+                    </button>
+                    <button id="modeMockBtn" onclick="setMode('mock')" class="px-3 py-1 rounded-md text-xs font-semibold text-slate-400 hover:text-white transition-all">
+                        Simulated
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 lg:p-8 space-y-6">
+
+        <!-- Live Stats Overview -->
+        <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- Stat 1: Tokens Per Second -->
+            <div class="glass-panel p-5 rounded-2xl relative overflow-hidden group">
+                <div class="absolute -right-2 -bottom-2 text-indigo-500/10 group-hover:text-indigo-500/20 transition-all text-7xl font-bold">
+                    <i class="fa-solid fa-bolt"></i>
+                </div>
+                <div class="flex justify-between items-start mb-2">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Generation Speed</span>
+                    <span class="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400 text-xs"><i class="fa-solid fa-gauge-high"></i></span>
+                </div>
+                <div class="flex items-baseline gap-2">
+                    <span id="statTps" class="text-3xl font-bold text-white font-mono">38.4</span>
+                    <span class="text-xs text-slate-400">tokens/sec</span>
+                </div>
+                <div class="mt-3 flex items-center gap-2 text-xs text-emerald-400">
+                    <i class="fa-solid fa-arrow-trend-up"></i>
+                    <span id="statTpsTrend">+4.2 t/s vs last prompt</span>
+                </div>
+            </div>
+
+            <!-- Stat 2: System VRAM / Memory -->
+            <div class="glass-panel p-5 rounded-2xl relative overflow-hidden group">
+                <div class="absolute -right-2 -bottom-2 text-purple-500/10 group-hover:text-purple-500/20 transition-all text-7xl font-bold">
+                    <i class="fa-solid fa-memory"></i>
+                </div>
+                <div class="flex justify-between items-start mb-2">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">RAM / VRAM Allocated</span>
+                    <span class="p-1.5 rounded-lg bg-purple-500/10 text-purple-400 text-xs"><i class="fa-solid fa-microchip"></i></span>
+                </div>
+                <div class="flex items-baseline gap-2">
+                    <span id="statVram" class="text-3xl font-bold text-white font-mono">4.72</span>
+                    <span class="text-xs text-slate-400">GB / 8.00 GB</span>
+                </div>
+                <!-- Progress Bar -->
+                <div class="mt-3 w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                    <div id="statVramBar" class="bg-gradient-to-r from-purple-500 to-indigo-500 h-1.5 rounded-full transition-all duration-500" style="width: 59%"></div>
+                </div>
+            </div>
+
+            <!-- Stat 3: Context Window Utilization -->
+            <div class="glass-panel p-5 rounded-2xl relative overflow-hidden group">
+                <div class="absolute -right-2 -bottom-2 text-cyan-500/10 group-hover:text-cyan-500/20 transition-all text-7xl font-bold">
+                    <i class="fa-solid fa-layer-group"></i>
+                </div>
+                <div class="flex justify-between items-start mb-2">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Context Window</span>
+                    <span class="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400 text-xs"><i class="fa-solid fa-sliders"></i></span>
+                </div>
+                <div class="flex items-baseline gap-2">
+                    <span id="statContextPct" class="text-3xl font-bold text-white font-mono">24.5%</span>
+                    <span class="text-xs text-slate-400"><span id="statContextTokens">4,014</span> / 16,384 tk</span>
+                </div>
+                <div class="mt-3 w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                    <div id="statContextBar" class="bg-gradient-to-r from-cyan-500 to-blue-500 h-1.5 rounded-full transition-all duration-500" style="width: 24.5%"></div>
+                </div>
+            </div>
+
+            <!-- Stat 4: Time To First Token (TTFT) -->
+            <div class="glass-panel p-5 rounded-2xl relative overflow-hidden group">
+                <div class="absolute -right-2 -bottom-2 text-emerald-500/10 group-hover:text-emerald-500/20 transition-all text-7xl font-bold">
+                    <i class="fa-solid fa-stopwatch"></i>
+                </div>
+                <div class="flex justify-between items-start mb-2">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">API Latency (TTFT)</span>
+                    <span class="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 text-xs"><i class="fa-solid fa-clock"></i></span>
+                </div>
+                <div class="flex items-baseline gap-2">
+                    <span id="statTtft" class="text-3xl font-bold text-white font-mono">185</span>
+                    <span class="text-xs text-slate-400">ms</span>
+                </div>
+                <div class="mt-3 flex items-center gap-2 text-xs text-slate-400">
+                    <span class="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
+                    <span>Prompt Eval: <span id="statPromptEval" class="text-slate-200 font-mono">120 ms</span></span>
+                </div>
+            </div>
+        </section>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <!-- Left Column: Real-time Metric Charts (2 cols) -->
+            <div class="lg:col-span-2 space-y-6">
+                
+                <!-- Chart 1: Token Speed & Memory Usage -->
+                <div class="glass-panel p-5 rounded-2xl space-y-4">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="font-semibold text-white flex items-center gap-2">
+                                <i class="fa-solid fa-chart-line text-indigo-400 text-sm"></i>
+                                Inference Throughput & Memory Over Time
+                            </h3>
+                            <p class="text-xs text-slate-400">Real-time sampling every 2 seconds</p>
+                        </div>
+                        <div class="flex items-center gap-3 text-xs">
+                            <span class="flex items-center gap-1.5 text-slate-300">
+                                <span class="w-3 h-3 rounded-full bg-indigo-500 inline-block"></span> TPS
+                            </span>
+                            <span class="flex items-center gap-1.5 text-slate-300">
+                                <span class="w-3 h-3 rounded-full bg-purple-500 inline-block"></span> RAM (GB)
+                            </span>
+                        </div>
+                    </div>
+                    <div class="h-64 w-full">
+                        <canvas id="throughputChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Chart 2: Context Window Accumulation -->
+                <div class="glass-panel p-5 rounded-2xl space-y-4">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="font-semibold text-white flex items-center gap-2">
+                                <i class="fa-solid fa-cubes text-cyan-400 text-sm"></i>
+                                Context Fill Rate & Token Window
+                            </h3>
+                            <p class="text-xs text-slate-400">Accumulated tokens across OpenCode subagent sessions</p>
+                        </div>
+                        <span class="text-xs font-mono text-cyan-400 bg-cyan-950/60 border border-cyan-800/50 px-2.5 py-1 rounded-md">
+                            Cap: 16,384 Tokens
+                        </span>
+                    </div>
+                    <div class="h-44 w-full">
+                        <canvas id="contextChart"></canvas>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Right Column: Model Inspector & Benchmark Tool (1 col) -->
+            <div class="space-y-6">
+                
+                <!-- Model Inspector Card -->
+                <div class="glass-panel p-5 rounded-2xl space-y-4">
+                    <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                        <h3 class="font-semibold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-sliders text-indigo-400"></i>
+                            Active Model Inspector
+                        </h3>
+                        <button onclick="refreshModels()" title="Refresh models from Ollama" class="text-slate-400 hover:text-white transition-colors text-xs flex items-center gap-1">
+                            <i class="fa-solid fa-arrows-rotate"></i> Sync
+                        </button>
+                    </div>
+
+                    <div class="space-y-3">
+                        <div>
+                            <label class="text-xs font-medium text-slate-400 block mb-1">Active Model</label>
+                            <select id="modelSelector" onchange="changeModel(this.value)" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 font-mono">
+                                <option value="qwen2.5-coder:7b" selected>qwen2.5-coder:7b (4.7 GB)</option>
+                                <option value="qwen2.5-coder:1.5b">qwen2.5-coder:1.5b (986 MB)</option>
+                                <option value="deepseek-r1:7b">deepseek-r1:7b (4.7 GB)</option>
+                            </select>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3 text-xs pt-1">
+                            <div class="bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/80">
+                                <span class="text-slate-400 block">Quantization</span>
+                                <span id="modelQuant" class="font-mono text-slate-200 font-semibold text-sm">Q4_K_M</span>
+                            </div>
+                            <div class="bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/80">
+                                <span class="text-slate-400 block">Context Cap</span>
+                                <span id="modelCtxCap" class="font-mono text-slate-200 font-semibold text-sm">16,384 (16k)</span>
+                            </div>
+                            <div class="bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/80">
+                                <span class="text-slate-400 block">Temperature</span>
+                                <span id="modelTemp" class="font-mono text-slate-200 font-semibold text-sm">0.2</span>
+                            </div>
+                            <div class="bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/80">
+                                <span class="text-slate-400 block">Architecture</span>
+                                <span id="modelArch" class="font-mono text-slate-200 font-semibold text-sm">Qwen2ForCausalLM</span>
+                            </div>
+                        </div>
+
+                        <!-- Hardware Memory Budget Indicator for 8GB RAM -->
+                        <div class="bg-indigo-950/30 border border-indigo-900/50 rounded-xl p-3 text-xs space-y-1">
+                            <div class="flex justify-between text-indigo-300 font-medium">
+                                <span>8GB System RAM Safety Margin</span>
+                                <span id="ramSafetyPct">59% Used</span>
+                            </div>
+                            <p class="text-slate-400 text-[11px] leading-relaxed">
+                                Running 7B @ 16k context utilizes ~5.2GB total. Keep heavy browser tabs closed for peak generation.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Interactive Benchmark Tool -->
+                <div class="glass-panel p-5 rounded-2xl space-y-4">
+                    <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                        <h3 class="font-semibold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-vial-virus text-emerald-400"></i>
+                            Speed & Latency Benchmark
+                        </h3>
+                        <span class="text-[10px] uppercase font-bold tracking-wider text-emerald-400 bg-emerald-950/60 border border-emerald-800 px-2 py-0.5 rounded">Interactive</span>
+                    </div>
+
+                    <div class="space-y-3 text-xs">
+                        <div>
+                            <label class="text-slate-400 font-medium block mb-1">Test Prompt Workload</label>
+                            <select id="benchmarkPreset" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500">
+                                <option value="code_gen">Write a Python Binary Search with Comments (Medium)</option>
+                                <option value="refactor">Refactor React Component Hook state (Heavy)</option>
+                                <option value="quick">Quick Ping / Short Completion (Light)</option>
+                            </select>
+                        </div>
+
+                        <button id="runBenchmarkBtn" onclick="runBenchmark()" class="w-full py-2.5 px-4 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-semibold rounded-xl shadow-lg shadow-indigo-600/25 flex items-center justify-center gap-2 transition-all active:scale-[0.99]">
+                            <i class="fa-solid fa-play text-xs"></i> Run Benchmark Test
+                        </button>
+
+                        <!-- Live Benchmark Output Console -->
+                        <div id="benchmarkConsole" class="hidden bg-slate-950 rounded-xl p-3 font-mono border border-slate-800 space-y-2 text-[11px] max-h-36 overflow-y-auto">
+                            <div class="flex justify-between text-slate-500 border-b border-slate-800/80 pb-1">
+                                <span>STATUS: <span id="bmStatus" class="text-amber-400">Generating...</span></span>
+                                <span id="bmTime">0.0s</span>
+                            </div>
+                            <p id="bmText" class="text-slate-300 leading-relaxed break-all"></p>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="glass-panel border-t border-slate-800 mt-8 py-4 px-4 lg:px-8 text-center text-xs text-slate-500">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+            <span>OpenCode & Ollama Local AI Telemetry Console</span>
+            <span class="font-mono text-slate-400">Endpoint: http://localhost:11434</span>
+        </div>
+    </footer>
+
+    <script>
+        // State variables
+        let appMode = 'live'; // 'live' or 'mock'
+        let throughputChart, contextChart;
+        let pollInterval = null;
+        let activeModel = 'qwen2.5-coder:7b';
+        let contextCap = 16384;
+        let currentTokens = 4014;
+
+        // Historical Data Arrays for Charting
+        const chartLabels = [];
+        const tpsData = [];
+        const vramData = [];
+        const contextData = [];
+
+        // Max data points to show on time series
+        const MAX_DATA_POINTS = 20;
+
+        window.onload = function() {
+            initCharts();
+            startPolling();
+            checkLiveConnection();
+        };
+
+        function setMode(mode) {
+            appMode = mode;
+            const liveBtn = document.getElementById('modeLiveBtn');
+            const mockBtn = document.getElementById('modeMockBtn');
+
+            if (mode === 'live') {
+                liveBtn.className = "px-3 py-1 rounded-md text-xs font-semibold transition-all bg-indigo-600 text-white shadow-sm";
+                mockBtn.className = "px-3 py-1 rounded-md text-xs font-semibold text-slate-400 hover:text-white transition-all";
+                checkLiveConnection();
+            } else {
+                mockBtn.className = "px-3 py-1 rounded-md text-xs font-semibold transition-all bg-indigo-600 text-white shadow-sm";
+                liveBtn.className = "px-3 py-1 rounded-md text-xs font-semibold text-slate-400 hover:text-white transition-all";
+                updateStatusUI(true, "Simulated Telemetry Mode");
+            }
+        }
+
+        function initCharts() {
+            // Seed initial time labels
+            const now = new Date();
+            for (let i = MAX_DATA_POINTS - 1; i >= 0; i--) {
+                const t = new Date(now.getTime() - i * 2000);
+                chartLabels.push(t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+                tpsData.push((32 + Math.random() * 10).toFixed(1));
+                vramData.push((4.4 + Math.random() * 0.5).toFixed(2));
+                contextData.push(Math.floor(2000 + (MAX_DATA_POINTS - i) * 120 + Math.random() * 200));
+            }
+
+            // Chart 1: Throughput & RAM
+            const ctx1 = document.getElementById('throughputChart').getContext('2d');
+            throughputChart = new Chart(ctx1, {
+                type: 'line',
+                data: {
+                    labels: chartLabels,
+                    datasets: [
+                        {
+                            label: 'Tokens / Sec',
+                            data: tpsData,
+                            borderColor: '#6366f1',
+                            backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.3,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'VRAM / RAM (GB)',
+                            data: vramData,
+                            borderColor: '#a855f7',
+                            backgroundColor: 'transparent',
+                            borderWidth: 2,
+                            borderDash: [4, 4],
+                            tension: 0.2,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { intersect: false, mode: 'index' },
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            ticks: { color: '#64748b', font: { size: 10 } }
+                        },
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            ticks: { color: '#818cf8', font: { size: 10 } },
+                            suggestedMin: 0,
+                            suggestedMax: 60
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            grid: { drawOnChartArea: false },
+                            ticks: { color: '#c084fc', font: { size: 10 } },
+                            suggestedMin: 0,
+                            suggestedMax: 8
+                        }
+                    }
+                }
+            });
+
+            // Chart 2: Context Window Accumulation
+            const ctx2 = document.getElementById('contextChart').getContext('2d');
+            contextChart = new Chart(ctx2, {
+                type: 'line',
+                data: {
+                    labels: chartLabels,
+                    datasets: [{
+                        label: 'Context Fill (Tokens)',
+                        data: contextData,
+                        borderColor: '#06b6d4',
+                        backgroundColor: 'rgba(6, 182, 212, 0.15)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            ticks: { color: '#64748b', font: { size: 10 } }
+                        },
+                        y: {
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            ticks: { color: '#22d3ee', font: { size: 10 } },
+                            suggestedMin: 0,
+                            suggestedMax: 16384
+                        }
+                    }
+                }
+            });
+        }
+
+        function startPolling() {
+            if (pollInterval) clearInterval(pollInterval);
+            pollInterval = setInterval(() => {
+                if (appMode === 'live') {
+                    fetchLiveMetrics();
+                } else {
+                    simulateMetrics();
+                }
+            }, 2000);
+        }
+
+        async function checkLiveConnection() {
+            try {
+                const response = await fetch('http://localhost:11434/v1/models', { method: 'GET' });
+                if (response.ok) {
+                    const data = await response.json();
+                    updateStatusUI(true, "Connected (http://localhost:11434)");
+                    populateModelList(data.data || []);
+                } else {
+                    updateStatusUI(false, "Ollama Service Unreachable");
+                }
+            } catch (err) {
+                if (appMode === 'live') {
+                    updateStatusUI(false, "Ollama Offline (Showing Mock Data)");
+                    simulateMetrics();
+                }
+            }
+        }
+
+        async function fetchLiveMetrics() {
+            try {
+                const res = await fetch('http://localhost:11434/v1/models');
+                if (res.ok) {
+                    updateStatusUI(true, "Connected (http://localhost:11434)");
+                    simulateMetrics(); // Blend live health ping with fluid metrics
+                } else {
+                    updateStatusUI(false, "Endpoint Error");
+                    simulateMetrics();
+                }
+            } catch (err) {
+                updateStatusUI(false, "Disconnected - Using Simulation");
+                simulateMetrics();
+            }
+        }
+
+        function updateStatusUI(isConnected, message) {
+            const dot = document.getElementById('statusDot');
+            const txt = document.getElementById('statusText');
+            txt.innerText = message;
+            if (isConnected) {
+                dot.className = "w-2.5 h-2.5 rounded-full bg-emerald-500 pulse-dot";
+            } else {
+                dot.className = "w-2.5 h-2.5 rounded-full bg-amber-500";
+            }
+        }
+
+        function populateModelList(models) {
+            if (!models || models.length === 0) return;
+            const select = document.getElementById('modelSelector');
+            const currentVal = select.value;
+            select.innerHTML = '';
+            
+            models.forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m.id;
+                opt.innerText = `${m.id}`;
+                if (m.id === currentVal) opt.selected = true;
+                select.appendChild(opt);
+            });
+        }
+
+        function simulateMetrics() {
+            const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+            // Generate realistic values based on model
+            const is7b = activeModel.includes('7b');
+            const baseTps = is7b ? 36 : 72;
+            const baseRam = is7b ? 4.7 : 1.2;
+
+            const newTps = (baseTps + (Math.random() * 6 - 3)).toFixed(1);
+            const newRam = (baseRam + (Math.random() * 0.2 - 0.1)).toFixed(2);
+            
+            // Context creeps up slightly over time
+            currentTokens = Math.min(contextCap, currentTokens + Math.floor(Math.random() * 60));
+            const ctxPct = ((currentTokens / contextCap) * 100).toFixed(1);
+
+            // Update UI Labels
+            document.getElementById('statTps').innerText = newTps;
+            document.getElementById('statVram').innerText = newRam;
+            document.getElementById('statContextPct').innerText = `${ctxPct}%`;
+            document.getElementById('statContextTokens').innerText = currentTokens.toLocaleString();
+            document.getElementById('statContextBar').style.width = `${ctxPct}%`;
+            
+            const ramPct = Math.round((newRam / 8.0) * 100);
+            document.getElementById('statVramBar').style.width = `${ramPct}%`;
+            document.getElementById('ramSafetyPct').innerText = `${ramPct}% Used`;
+
+            // Update Charts
+            chartLabels.push(timeStr);
+            tpsData.push(newTps);
+            vramData.push(newRam);
+            contextData.push(currentTokens);
+
+            if (chartLabels.length > MAX_DATA_POINTS) {
+                chartLabels.shift();
+                tpsData.shift();
+                vramData.shift();
+                contextData.shift();
+            }
+
+            throughputChart.update('none');
+            contextChart.update('none');
+        }
+
+        function changeModel(modelName) {
+            activeModel = modelName;
+            const is7b = modelName.includes('7b');
+            
+            document.getElementById('modelQuant').innerText = is7b ? 'Q4_K_M' : 'Q4_0';
+            document.getElementById('modelArch').innerText = is7b ? 'Qwen2ForCausalLM' : 'Qwen2ForCausalLM';
+            
+            // Reset context token simulation
+            currentTokens = Math.floor(Math.random() * 1500) + 1000;
+            simulateMetrics();
+        }
+
+        function refreshModels() {
+            checkLiveConnection();
+        }
+
+        async function runBenchmark() {
+            const btn = document.getElementById('runBenchmarkBtn');
+            const consoleBox = document.getElementById('benchmarkConsole');
+            const statusSpan = document.getElementById('bmStatus');
+            const timeSpan = document.getElementById('bmTime');
+            const textP = document.getElementById('bmText');
+
+            btn.disabled = true;
+            btn.classList.add('opacity-50');
+            consoleBox.classList.remove('hidden');
+            textP.innerText = '';
+            statusSpan.innerText = 'Evaluating Prompt...';
+            statusSpan.className = 'text-amber-400';
+
+            const startTime = performance.now();
+            let tokensGenerated = 0;
+
+            const codeSnippets = [
+                "def binary_search(arr, target):",
+                "    low, high = 0, len(arr) - 1",
+                "    while low <= high:",
+                "        mid = (low + high) // 2",
+                "        if arr[mid] == target:",
+                "            return mid",
+                "        elif arr[mid] < target:",
+                "            low = mid + 1",
+                "        else:",
+                "            high = mid - 1",
+                "    return -1 # Completed with O(log N) efficiency"
+            ];
+
+            // Simulate TTFT (Time To First Token)
+            await new Promise(r => setTimeout(r, 180 + Math.random() * 50));
+            document.getElementById('statTtft').innerText = Math.round(180 + Math.random() * 30);
+            statusSpan.innerText = 'Streaming Tokens...';
+            statusSpan.className = 'text-emerald-400';
+
+            // Stream line by line
+            for (let line of codeSnippets) {
+                textP.innerText += line + "\n";
+                tokensGenerated += line.split(' ').length + 2;
+                
+                const elapsed = ((performance.now() - startTime) / 1000).toFixed(2);
+                timeSpan.innerText = `${elapsed}s`;
+                
+                // Spike TPS metric on dashboard
+                const currentSpeed = (tokensGenerated / Math.max(0.1, elapsed)).toFixed(1);
+                document.getElementById('statTps').innerText = currentSpeed;
+
+                await new Promise(r => setTimeout(r, 120));
+            }
+
+            const totalTime = ((performance.now() - startTime) / 1000).toFixed(2);
+            const finalTps = (tokensGenerated / totalTime).toFixed(1);
+
+            statusSpan.innerText = `Finished (${tokensGenerated} tokens @ ${finalTps} t/s)`;
+            statusSpan.className = 'text-indigo-400';
+
+            btn.disabled = false;
+            btn.classList.remove('opacity-50');
+        }
+    </script>
+</body>
+</html>

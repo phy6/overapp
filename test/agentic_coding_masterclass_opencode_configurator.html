@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agentic Coding Masterclass & OpenCode Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f6ff',
+                            100: '#e0edff',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                            800: '#1e40af',
+                            900: '#1e3a8a',
+                            accent: '#8b5cf6',
+                            emerald: '#10b981',
+                            amber: '#f59e0b',
+                            rose: '#f43f5e'
+                        },
+                        darkbg: {
+                            900: '#0b0f17',
+                            800: '#111827',
+                            700: '#1f293d',
+                            600: '#374151'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['Fira Code', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom scrollbar and glow effects */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #0b0f17; }
+        ::-webkit-scrollbar-thumb { background: #1f293d; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #374151; }
+        .glow-border { box-shadow: 0 0 15px rgba(59, 130, 246, 0.15); }
+        .glow-purple { box-shadow: 0 0 15px rgba(139, 92, 246, 0.15); }
+        .tab-active { border-bottom: 2px solid #3b82f6; color: #60a5fa; background-color: rgba(59, 130, 246, 0.05); }
+        .code-syntax { font-family: 'Fira Code', monospace; }
+        .glass-card { background: rgba(17, 24, 39, 0.7); backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, 0.08); }
+    </style>
+</head>
+<body class="bg-darkbg-900 text-gray-100 font-sans min-h-screen flex flex-col selection:bg-brand-500 selection:text-white">
+
+    <header class="border-b border-gray-800 bg-darkbg-800/80 sticky top-0 z-50 backdrop-blur-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-brand-accent flex items-center justify-center text-white font-bold text-xl shadow-lg">
+                    <i class="fa-solid fa-robot"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold bg-gradient-to-r from-white via-gray-200 to-gray-400 bg-clip-text text-transparent">
+                        Agentic Coding Playbook
+                    </h1>
+                    <p class="text-xs text-brand-500 font-medium">Matt Pocock & Industry Insights + OpenCode CLI</p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-3">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-950 text-emerald-400 border border-emerald-800">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5 animate-pulse"></span>
+                    2026 AI Dev Workflow
+                </span>
+                <a href="#opencode-generator" onclick="switchTab('opencode')" class="hidden sm:inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-lg bg-brand-600 hover:bg-brand-500 text-white transition-colors shadow-sm">
+                    <i class="fa-solid fa-terminal mr-2"></i> OpenCode Builder
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col gap-6">
+
+        <!-- Banner Alert -->
+        <div class="p-4 rounded-xl glass-card bg-gradient-to-r from-darkbg-800 via-brand-900/30 to-darkbg-800 border-l-4 border-brand-500 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div class="flex items-start space-x-3">
+                <i class="fa-solid fa-lightbulb text-brand-500 text-xl mt-0.5"></i>
+                <div>
+                    <h2 class="text-sm font-semibold text-gray-200">The Shift: From Chatbots to Agentic Software Engineering</h2>
+                    <p class="text-xs text-gray-400 mt-0.5">
+                        "Stop writing code manually. Start acting as the Architect & Test Evaluator." Learn Matt Pocock's core methodology, context engineering, and interactive tools for OpenCode / Cursor / Aider.
+                    </p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-2 text-xs text-gray-400 shrink-0">
+                <span class="px-2 py-1 rounded bg-gray-800 border border-gray-700"><i class="fa-solid fa-circle-check text-brand-500 mr-1"></i> TDD-First</span>
+                <span class="px-2 py-1 rounded bg-gray-800 border border-gray-700"><i class="fa-solid fa-layer-group text-brand-accent mr-1"></i> Context Slicing</span>
+            </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="flex border-b border-gray-800 overflow-x-auto space-x-1 no-scrollbar">
+            <button onclick="switchTab('insights')" id="tab-insights" class="tab-active px-4 py-3 text-sm font-medium flex items-center space-x-2 transition-all whitespace-nowrap">
+                <i class="fa-solid fa-brain"></i>
+                <span>Core Methodologies & Insights</span>
+            </button>
+            <button onclick="switchTab('simulator')" id="tab-simulator" class="px-4 py-3 text-sm font-medium text-gray-400 hover:text-gray-200 flex items-center space-x-2 transition-all whitespace-nowrap">
+                <i class="fa-solid fa-diagram-project"></i>
+                <span>Agent Loop Simulator</span>
+            </button>
+            <button onclick="switchTab('opencode')" id="tab-opencode" class="px-4 py-3 text-sm font-medium text-gray-400 hover:text-gray-200 flex items-center space-x-2 transition-all whitespace-nowrap">
+                <i class="fa-solid fa-terminal text-brand-accent"></i>
+                <span>OpenCode CLI Generator</span>
+            </button>
+            <button onclick="switchTab('rules')" id="tab-rules" class="px-4 py-3 text-sm font-medium text-gray-400 hover:text-gray-200 flex items-center space-x-2 transition-all whitespace-nowrap">
+                <i class="fa-solid fa-scroll"></i>
+                <span>Agent Rules Builder (.cursorrules / AGENT.md)</span>
+            </button>
+        </div>
+
+        <section id="view-insights" class="flex flex-col gap-6">
+            <!-- Filter & Search Controls -->
+            <div class="flex flex-col sm:flex-row items-center justify-between gap-4 glass-card p-4 rounded-xl">
+                <div class="relative w-full sm:w-80">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm"></i>
+                    <input type="text" id="insight-search" oninput="filterInsights()" placeholder="Search concepts, tools, or tips..." class="w-full bg-darkbg-900 border border-gray-700 rounded-lg pl-9 pr-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-brand-500">
+                </div>
+                <div class="flex items-center space-x-2 w-full sm:w-auto overflow-x-auto">
+                    <span class="text-xs text-gray-400 font-medium mr-1">Topic:</span>
+                    <button onclick="filterCategory('all')" class="cat-btn px-3 py-1.5 text-xs rounded-lg bg-brand-600 text-white font-medium shadow-sm transition-all" data-cat="all">All</button>
+                    <button onclick="filterCategory('pocock')" class="cat-btn px-3 py-1.5 text-xs rounded-lg bg-darkbg-900 border border-gray-700 text-gray-300 hover:bg-gray-800 transition-all" data-cat="pocock">Matt Pocock</button>
+                    <button onclick="filterCategory('context')" class="cat-btn px-3 py-1.5 text-xs rounded-lg bg-darkbg-900 border border-gray-700 text-gray-300 hover:bg-gray-800 transition-all" data-cat="context">Context & Prompts</button>
+                    <button onclick="filterCategory('tdd')" class="cat-btn px-3 py-1.5 text-xs rounded-lg bg-darkbg-900 border border-gray-700 text-gray-300 hover:bg-gray-800 transition-all" data-cat="tdd">TDD & Feedback</button>
+                    <button onclick="filterCategory('tooling')" class="cat-btn px-3 py-1.5 text-xs rounded-lg bg-darkbg-900 border border-gray-700 text-gray-300 hover:bg-gray-800 transition-all" data-cat="tooling">Industry Standards</button>
+                </div>
+            </div>
+
+            <!-- Insights Cards Grid -->
+            <div id="insights-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Javascript dynamic injection here -->
+            </div>
+        </section>
+
+        <section id="view-simulator" class="hidden flex-col gap-6">
+            <div class="glass-card p-6 rounded-xl">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                    <div>
+                        <h2 class="text-lg font-bold text-gray-100 flex items-center gap-2">
+                            <i class="fa-solid fa-arrows-spin text-brand-500"></i> Human-in-the-Loop Agentic Loop Simulator
+                        </h2>
+                        <p class="text-xs text-gray-400 mt-1">Simulate how Matt Pocock & top engineers interact with code agents step-by-step.</p>
+                    </div>
+                    <button onclick="resetSimulator()" class="px-3 py-1.5 text-xs font-semibold rounded bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 flex items-center gap-2">
+                        <i class="fa-solid fa-rotate-right"></i> Reset Simulation
+                    </button>
+                </div>
+
+                <!-- Simulation Stepper Visualizer -->
+                <div class="grid grid-cols-1 md:grid-cols-5 gap-3 mb-6">
+                    <div id="sim-step-1" class="p-3 rounded-lg border border-brand-500/50 bg-brand-950/30 text-center transition-all">
+                        <span class="text-xs font-semibold text-brand-400 block">Step 1</span>
+                        <span class="text-xs text-gray-200 font-medium">Spec & Fail Test</span>
+                    </div>
+                    <div id="sim-step-2" class="p-3 rounded-lg border border-gray-800 bg-darkbg-900 text-center transition-all opacity-60">
+                        <span class="text-xs font-semibold text-gray-500 block">Step 2</span>
+                        <span class="text-xs text-gray-300 font-medium">Context Scaffolding</span>
+                    </div>
+                    <div id="sim-step-3" class="p-3 rounded-lg border border-gray-800 bg-darkbg-900 text-center transition-all opacity-60">
+                        <span class="text-xs font-semibold text-gray-500 block">Step 3</span>
+                        <span class="text-xs text-gray-300 font-medium">Agent Generation</span>
+                    </div>
+                    <div id="sim-step-4" class="p-3 rounded-lg border border-gray-800 bg-darkbg-900 text-center transition-all opacity-60">
+                        <span class="text-xs font-semibold text-gray-500 block">Step 4</span>
+                        <span class="text-xs text-gray-300 font-medium">Verification Run</span>
+                    </div>
+                    <div id="sim-step-5" class="p-3 rounded-lg border border-gray-800 bg-darkbg-900 text-center transition-all opacity-60">
+                        <span class="text-xs font-semibold text-gray-500 block">Step 5</span>
+                        <span class="text-xs text-gray-300 font-medium">Commit & Reset</span>
+                    </div>
+                </div>
+
+                <!-- Simulation Interactive Area -->
+                <div class="bg-darkbg-900 rounded-xl p-5 border border-gray-800">
+                    <div id="sim-content" class="min-h-[220px] flex flex-col justify-between">
+                        <!-- Step details will render dynamically here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Comparison Table: Traditional vs Agentic Coding -->
+            <div class="glass-card p-6 rounded-xl">
+                <h3 class="text-md font-bold text-gray-200 mb-4 flex items-center gap-2">
+                    <i class="fa-solid fa-code-compare text-brand-accent"></i> Paradigm Shift Matrix
+                </h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-gray-300">
+                        <thead class="bg-darkbg-900 text-gray-400 font-semibold border-b border-gray-800">
+                            <tr>
+                                <th class="p-3">Dimension</th>
+                                <th class="p-3">Traditional Developer Mindset</th>
+                                <th class="p-3 text-brand-400">Agentic Developer Mindset (Pocock Era)</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-800">
+                            <tr>
+                                <td class="p-3 font-semibold text-gray-200">Primary Task</td>
+                                <td class="p-3 text-gray-400">Manual syntax writing, imports, boilerplates</td>
+                                <td class="p-3 text-emerald-400 font-medium">Designing specs, typing inputs, verifying outputs</td>
+                            </tr>
+                            <tr>
+                                <td class="p-3 font-semibold text-gray-200">Quality Control</td>
+                                <td class="p-3 text-gray-400">Reading line-by-line code manually</td>
+                                <td class="p-3 text-emerald-400 font-medium">Automated test suites, TypeScript strict checks, linter runs</td>
+                            </tr>
+                            <tr>
+                                <td class="p-3 font-semibold text-gray-200">Context Strategy</td>
+                                <td class="p-3 text-gray-400">Pasting entire repositories into ChatGPT</td>
+                                <td class="p-3 text-emerald-400 font-medium">Precision context slicing (@file, minimal docs, crisp interfaces)</td>
+                            </tr>
+                            <tr>
+                                <td class="p-3 font-semibold text-gray-200">Git Granularity</td>
+                                <td class="p-3 text-gray-400">Mega-commits after hours of feature work</td>
+                                <td class="p-3 text-emerald-400 font-medium">Micro-commits per working prompt step (instant rollback)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section id="view-opencode" class="hidden flex-col gap-6">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <!-- Inputs & Configuration Panel -->
+                <div class="lg:col-span-7 space-y-6">
+                    <div class="glass-card p-6 rounded-xl border border-gray-800">
+                        <div class="flex items-center justify-between mb-4">
+                            <h2 class="text-md font-bold text-gray-100 flex items-center gap-2">
+                                <i class="fa-solid fa-sliders text-brand-500"></i> OpenCode CLI Input Builder
+                            </h2>
+                            <span class="text-xs text-brand-400 bg-brand-950 px-2 py-1 rounded border border-brand-800">CLI Builder v2026</span>
+                        </div>
+
+                        <!-- Task Definition -->
+                        <div class="space-y-4 text-xs">
+                            <div>
+                                <label class="block font-semibold text-gray-300 mb-1">1. Select Target Task Objective</label>
+                                <select id="cli-task-preset" onchange="applyTaskPreset()" class="w-full bg-darkbg-900 border border-gray-700 rounded-lg p-2.5 text-gray-200 focus:border-brand-500 outline-none">
+                                    <option value="custom">-- Custom Prompt --</option>
+                                    <option value="tdd-feature">TDD Feature: Implement module to pass failing test</option>
+                                    <option value="refactor">Refactor: Clean up complexity & enforce TypeScript strictness</option>
+                                    <option value="bug-fix">Bug Fix: Trace error stack trace and patch bug</option>
+                                    <option value="docs-types">Types & Docs: Generate Zod schema and JSDoc annotations</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label class="block font-semibold text-gray-300 mb-1">2. Core Prompt / Instruction Input</label>
+                                <textarea id="cli-prompt" rows="3" oninput="updateCliOutput()" class="w-full bg-darkbg-900 border border-gray-700 rounded-lg p-2.5 text-gray-200 code-syntax focus:border-brand-500 outline-none resize-none" placeholder="Enter explicit instructions for OpenCode CLI..."></textarea>
+                            </div>
+
+                            <!-- Context Files selection -->
+                            <div>
+                                <label class="block font-semibold text-gray-300 mb-1">3. Context Files & References (--files / -f)</label>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <label class="flex items-center space-x-2 p-2 bg-darkbg-900 border border-gray-800 rounded hover:border-gray-700 cursor-pointer">
+                                        <input type="checkbox" class="cli-file-check" value="src/index.ts" onchange="updateCliOutput()" checked>
+                                        <span class="text-gray-300 code-syntax">src/index.ts</span>
+                                    </label>
+                                    <label class="flex items-center space-x-2 p-2 bg-darkbg-900 border border-gray-800 rounded hover:border-gray-700 cursor-pointer">
+                                        <input type="checkbox" class="cli-file-check" value="tests/index.test.ts" onchange="updateCliOutput()" checked>
+                                        <span class="text-gray-300 code-syntax">tests/index.test.ts</span>
+                                    </label>
+                                    <label class="flex items-center space-x-2 p-2 bg-darkbg-900 border border-gray-800 rounded hover:border-gray-700 cursor-pointer">
+                                        <input type="checkbox" class="cli-file-check" value="package.json" onchange="updateCliOutput()">
+                                        <span class="text-gray-300 code-syntax">package.json</span>
+                                    </label>
+                                    <label class="flex items-center space-x-2 p-2 bg-darkbg-900 border border-gray-800 rounded hover:border-gray-700 cursor-pointer">
+                                        <input type="checkbox" class="cli-file-check" value="AGENT.md" onchange="updateCliOutput()" checked>
+                                        <span class="text-gray-300 code-syntax">AGENT.md</span>
+                                    </label>
+                                </div>
+                                <div class="mt-2 flex items-center space-x-2">
+                                    <input type="text" id="cli-custom-file" placeholder="Add custom path (e.g. src/utils.ts)..." class="flex-1 bg-darkbg-900 border border-gray-700 rounded p-1.5 text-gray-300 code-syntax focus:outline-none">
+                                    <button onclick="addCustomFile()" class="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded font-medium">Add</button>
+                                </div>
+                            </div>
+
+                            <!-- Model & Execution Parameters -->
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block font-semibold text-gray-300 mb-1">4. Select LLM Model</label>
+                                    <select id="cli-model" onchange="updateCliOutput()" class="w-full bg-darkbg-900 border border-gray-700 rounded-lg p-2 text-gray-200 focus:border-brand-500 outline-none">
+                                        <option value="claude-3-7-sonnet">Claude 3.7 Sonnet (Recommended)</option>
+                                        <option value="claude-3-5-sonnet">Claude 3.5 Sonnet</option>
+                                        <option value="gpt-4o">GPT-4o</option>
+                                        <option value="deepseek-r1">DeepSeek R1 (Reasoning)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block font-semibold text-gray-300 mb-1">5. Execution Mode</label>
+                                    <select id="cli-mode" onchange="updateCliOutput()" class="w-full bg-darkbg-900 border border-gray-700 rounded-lg p-2 text-gray-200 focus:border-brand-500 outline-none">
+                                        <option value="interactive">Interactive / Plan-First (--plan)</option>
+                                        <option value="auto">Auto-Execute Mode (--auto-apply)</option>
+                                        <option value="dry-run">Dry Run / Diff Only (--dry-run)</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Additional Flag Options -->
+                            <div class="pt-2 border-t border-gray-800 flex flex-wrap gap-4">
+                                <label class="flex items-center space-x-2 cursor-pointer">
+                                    <input type="checkbox" id="flag-test" onchange="updateCliOutput()" checked class="rounded border-gray-700">
+                                    <span class="text-gray-300">Run Verification Command (`--test "npm test"`)</span>
+                                </label>
+                                <label class="flex items-center space-x-2 cursor-pointer">
+                                    <input type="checkbox" id="flag-thinking" onchange="updateCliOutput()" checked class="rounded border-gray-700">
+                                    <span class="text-gray-300">High Extended Thinking Budget (`--thinking`)</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Preview & Terminal Output Column -->
+                <div class="lg:col-span-5 space-y-6">
+                    <!-- Live CLI Terminal Visualizer -->
+                    <div class="bg-black/90 rounded-xl border border-gray-800 shadow-2xl overflow-hidden flex flex-col h-full">
+                        <div class="bg-gray-900 px-4 py-2 border-b border-gray-800 flex items-center justify-between">
+                            <div class="flex items-center space-x-2">
+                                <span class="w-3 h-3 rounded-full bg-red-500/80 inline-block"></span>
+                                <span class="w-3 h-3 rounded-full bg-yellow-500/80 inline-block"></span>
+                                <span class="w-3 h-3 rounded-full bg-green-500/80 inline-block"></span>
+                                <span class="text-xs text-gray-400 font-mono ml-2">Terminal — OpenCode CLI</span>
+                            </div>
+                            <button onclick="copyToClipboard('cli-command-text', 'cli-copy-btn')" id="cli-copy-btn" class="text-xs text-brand-400 hover:text-brand-300 flex items-center gap-1 bg-gray-800 px-2.5 py-1 rounded border border-gray-700">
+                                <i class="fa-regular fa-copy"></i> Copy
+                            </button>
+                        </div>
+                        <div class="p-4 flex-grow font-mono text-xs overflow-x-auto space-y-3">
+                            <div class="text-gray-500"># Configured OpenCode terminal string:</div>
+                            <div id="cli-command-text" class="text-emerald-400 font-semibold whitespace-pre-wrap break-all leading-relaxed">
+                                opencode run "..."
+                            </div>
+                            <div class="pt-4 border-t border-gray-800 text-gray-400">
+                                <div class="text-gray-500 mb-1"># Simulated Command Payload Summary:</div>
+                                <div><span class="text-brand-400">Model:</span> <span id="summary-model" class="text-gray-200"></span></div>
+                                <div><span class="text-brand-400">Mode:</span> <span id="summary-mode" class="text-gray-200"></span></div>
+                                <div><span class="text-brand-400">Context Files:</span> <span id="summary-files" class="text-gray-200"></span></div>
+                            </div>
+                        </div>
+                        <div class="bg-gray-900/50 p-3 border-t border-gray-800 flex justify-between items-center text-xs">
+                            <span class="text-gray-400"><i class="fa-solid fa-terminal text-brand-500 mr-1"></i> Ready for execution</span>
+                            <button onclick="executeSimulatedCli()" class="px-3 py-1 bg-brand-600 hover:bg-brand-500 text-white rounded font-medium shadow-sm">
+                                Test Run Simulation
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="view-rules" class="hidden flex-col gap-6">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <!-- Rules Controls -->
+                <div class="lg:col-span-5 glass-card p-6 rounded-xl border border-gray-800 space-y-4">
+                    <h2 class="text-md font-bold text-gray-100 flex items-center gap-2">
+                        <i class="fa-solid fa-sliders text-brand-accent"></i> Rule Set Presets
+                    </h2>
+                    <p class="text-xs text-gray-400">
+                        Top agentic engineers use standard rules files (`.cursorrules` or `AGENT.md`) to keep models constrained within boundaries. Select options below to compose your rules.
+                    </p>
+
+                    <div class="space-y-3 text-xs">
+                        <label class="block font-semibold text-gray-300">Target Tech Stack</label>
+                        <select id="rules-stack" onchange="generateRulesContent()" class="w-full bg-darkbg-900 border border-gray-700 rounded-lg p-2 text-gray-200">
+                            <option value="ts-react">TypeScript + React + Tailwind + Vite</option>
+                            <option value="node-express">Node.js + TypeScript + Vitest</option>
+                            <option value="nextjs">Next.js App Router + Prisma + Tailwind</option>
+                        </select>
+
+                        <div class="pt-2 space-y-2">
+                            <label class="block font-semibold text-gray-300">Enforced Guardrails</label>
+                            <label class="flex items-center space-x-2">
+                                <input type="checkbox" id="rule-tdd" onchange="generateRulesContent()" checked class="rounded">
+                                <span class="text-gray-300">Enforce TDD (Write failing tests first)</span>
+                            </label>
+                            <label class="flex items-center space-x-2">
+                                <input type="checkbox" id="rule-no-any" onchange="generateRulesContent()" checked class="rounded">
+                                <span class="text-gray-300">Strict TypeScript: Ban `any` and un-typed responses</span>
+                            </label>
+                            <label class="flex items-center space-x-2">
+                                <input type="checkbox" id="rule-atomic" onchange="generateRulesContent()" checked class="rounded">
+                                <span class="text-gray-300">Atomic Changes: Modify max 2 files per iteration</span>
+                            </label>
+                            <label class="flex items-center space-x-2">
+                                <input type="checkbox" id="rule-logging" onchange="generateRulesContent()" checked class="rounded">
+                                <span class="text-gray-300">No console.log in production code</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Rules File Editor / Code View -->
+                <div class="lg:col-span-7 glass-card p-6 rounded-xl border border-gray-800 flex flex-col">
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-xs font-mono text-brand-400 font-bold flex items-center gap-2">
+                            <i class="fa-solid fa-file-code"></i> AGENT.md / .cursorrules Output
+                        </span>
+                        <button onclick="copyToClipboard('rules-output-text', 'rules-copy-btn')" id="rules-copy-btn" class="text-xs bg-brand-600 hover:bg-brand-500 text-white px-3 py-1 rounded flex items-center gap-1 font-medium">
+                            <i class="fa-regular fa-copy"></i> Copy Rules File
+                        </button>
+                    </div>
+                    <textarea id="rules-output-text" readonly class="w-full flex-grow h-80 bg-darkbg-900 border border-gray-800 rounded-lg p-3 code-syntax text-xs text-gray-300 focus:outline-none resize-none leading-relaxed"></textarea>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <div id="toast" class="fixed bottom-5 right-5 bg-emerald-600 text-white px-4 py-2.5 rounded-lg shadow-xl text-xs font-semibold flex items-center space-x-2 transform translate-y-20 opacity-0 transition-all duration-300 z-50">
+        <i class="fa-solid fa-circle-check"></i>
+        <span id="toast-msg">Copied to clipboard!</span>
+    </div>
+
+    <script>
+        // --- DATA STORE: Insights & Best Practices ---
+        const insightsData = [
+            {
+                id: 1,
+                title: "The 'Tests First, Code Second' Pattern",
+                source: "Matt Pocock",
+                category: "pocock",
+                catName: "Matt Pocock",
+                badgeColor: "bg-blue-950 text-blue-400 border-blue-800",
+                description: "AI agents excel when given strict, measurable boundaries. Writing a failing test first provides the agent with an unambiguous success signal.",
+                takeaway: "Never ask an agent to 'build x feature' without first asking it to write tests or providing an existing failing test suite.",
+                code: "// 1. Prompt Agent to write test first\ntest('should format currency correctly', () => {\n  expect(formatAmount(1000, 'USD')).toBe('$1,000.00');\n});"
+            },
+            {
+                id: 2,
+                title: "Context Slicing: Less is More",
+                source: "Matt Pocock & Cursor Guides",
+                category: "context",
+                catName: "Context & Prompts",
+                badgeColor: "bg-purple-950 text-purple-400 border-purple-800",
+                description: "Dumping your entire codebase into context causes attention degradation. Provide surgical context using specific file mentions (@file).",
+                takeaway: "Include only the target file, interface/type definitions, and the unit test file.",
+                code: "opencode run -f src/user.ts -f src/types.ts -f tests/user.test.ts 'Fix test failure'"
+            },
+            {
+                id: 3,
+                title: "Atomic Iteration & Micro-Commits",
+                source: "Matt Pocock",
+                category: "pocock",
+                catName: "Matt Pocock",
+                badgeColor: "bg-blue-950 text-blue-400 border-blue-800",
+                description: "Execute small, isolated prompts. Commit every time an agent successfully completes a single test pass.",
+                takeaway: "If an agent strays off track, hit git reset. Don't waste turns arguing with hallucinating agents.",
+                code: "git commit -m 'feat: pass currency formatting test'\n# Ready for next prompt increment"
+            },
+            {
+                id: 4,
+                title: "System Guardrails & AGENT.md",
+                source: "Anthropic & Aider Workflows",
+                category: "tooling",
+                catName: "Industry Standards",
+                badgeColor: "bg-emerald-950 text-emerald-400 border-emerald-800",
+                description: "Persistent project instructions guide AI across all turns. Place clear rules regarding formatting, linting, and forbidden patterns.",
+                takeaway: "Maintain an AGENT.md in project root detailing project rules, test commands, and architectural patterns.",
+                code: "# AGENT.md\n- Always run `npm test` after edits\n- Never use `any` type\n- Use functional components"
+            },
+            {
+                id: 5,
+                title: "The Architecture vs Coding Role",
+                source: "Simon Willison & Pocock",
+                category: "tdd",
+                catName: "TDD & Feedback",
+                badgeColor: "bg-amber-950 text-amber-400 border-amber-800",
+                description: "Shift your identity from 'Code Writer' to 'System Architect & Code Reviewer'. The human defines the interface contract.",
+                takeaway: "Review diffs with strict scrutiny. The faster AI generates code, the higher your verification standard must be.",
+                code: "// You design the interface:\ntype PaymentHandler = (amount: number) => Promise<Result>;\n// Agent fills implementation"
+            },
+            {
+                id: 6,
+                title: "Automated Feedback Loops",
+                source: "Cursor & OpenCode Best Practices",
+                category: "tooling",
+                catName: "Industry Standards",
+                badgeColor: "bg-emerald-950 text-emerald-400 border-emerald-800",
+                description: "Allow the CLI / Agent tool to run terminal verification automatically so it can auto-correct syntax or type errors.",
+                takeaway: "Utilize CLI flags that pass terminal output back into the prompt automatically when tests fail.",
+                code: "opencode run --test 'npm run typecheck' 'Refactor auth middleware'"
+            }
+        ];
+
+        // --- RENDER INSIGHTS CARDS ---
+        function renderInsights(items) {
+            const grid = document.getElementById('insights-grid');
+            grid.innerHTML = '';
+
+            items.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'glass-card rounded-xl p-5 border border-gray-800 hover:border-brand-500/50 transition-all flex flex-col justify-between';
+                card.innerHTML = `
+                    <div>
+                        <div class="flex items-center justify-between gap-2 mb-3">
+                            <span class="text-xs px-2.5 py-0.5 rounded-full font-semibold border ${item.badgeColor}">${item.catName}</span>
+                            <span class="text-[11px] text-gray-500 font-medium"><i class="fa-solid fa-quote-left mr-1"></i>${item.source}</span>
+                        </div>
+                        <h3 class="text-sm font-bold text-gray-100 mb-2">${item.title}</h3>
+                        <p class="text-xs text-gray-300 leading-relaxed mb-3">${item.description}</p>
+                        
+                        <div class="bg-darkbg-900 border border-gray-800 rounded-lg p-3 text-xs mb-3">
+                            <span class="text-brand-400 font-semibold block mb-1">Key Actionable Takeaway:</span>
+                            <span class="text-gray-300">${item.takeaway}</span>
+                        </div>
+
+                        ${item.code ? `
+                        <div class="bg-black/60 rounded-lg p-2.5 border border-gray-800 mb-3">
+                            <pre class="code-syntax text-[11px] text-emerald-400 overflow-x-auto">${item.code}</pre>
+                        </div>
+                        ` : ''}
+                    </div>
+
+                    <button onclick="copySnippet('${escapeQuotes(item.takeaway)}')" class="w-full mt-2 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors border border-gray-700">
+                        <i class="fa-regular fa-copy"></i> Copy Prompt Directive
+                    </button>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function escapeQuotes(str) {
+            return str.replace(/'/g, "\\'");
+        }
+
+        // --- FILTERING LOGIC ---
+        let currentCategory = 'all';
+
+        function filterCategory(cat) {
+            currentCategory = cat;
+            document.querySelectorAll('.cat-btn').forEach(btn => {
+                if (btn.dataset.cat === cat) {
+                    btn.className = 'cat-btn px-3 py-1.5 text-xs rounded-lg bg-brand-600 text-white font-medium shadow-sm transition-all';
+                } else {
+                    btn.className = 'cat-btn px-3 py-1.5 text-xs rounded-lg bg-darkbg-900 border border-gray-700 text-gray-300 hover:bg-gray-800 transition-all';
+                }
+            });
+            filterInsights();
+        }
+
+        function filterInsights() {
+            const search = document.getElementById('insight-search').value.toLowerCase();
+            const filtered = insightsData.filter(item => {
+                const matchesCat = (currentCategory === 'all' || item.category === currentCategory);
+                const matchesSearch = item.title.toLowerCase().includes(search) || 
+                                      item.description.toLowerCase().includes(search) ||
+                                      item.source.toLowerCase().includes(search);
+                return matchesCat && matchesSearch;
+            });
+            renderInsights(filtered);
+        }
+
+        // --- SIMULATOR LOGIC ---
+        let simStep = 1;
+        const simData = [
+            {
+                step: 1,
+                title: "Step 1: Define Specification & Write Failing Test First",
+                desc: "Instead of asking the LLM to build code directly, you specify the exact expected input/output contract by creating or prompting a unit test.",
+                actionText: "Generate Failing Unit Test",
+                codeSnippet: "// test/calculator.test.ts\ndescribe('CalculateTax', () => {\n  it('applies 20% vat correctly', () => {\n    expect(calculateTax(100)).toBe(120);\n  });\n});",
+                status: "Test status: FAILING (Module calculateTax not found)"
+            },
+            {
+                step: 2,
+                title: "Step 2: Scaffolding Minimal Context",
+                desc: "Select only the target test file and the empty/target source file. Avoid loading unrelated parts of the codebase.",
+                actionText: "Assemble Context & Prompt Agent",
+                codeSnippet: "Selected Files for Agent:\n - test/calculator.test.ts (failing test)\n - src/calculator.ts (blank source file)\n - AGENT.md (project rules)",
+                status: "Context payload size: 1.2 KB (Optimal)"
+            },
+            {
+                step: 3,
+                title: "Step 3: Agent Code Generation",
+                desc: "The agent reviews the failing assertion and generates minimal code targeted strictly at satisfying the test.",
+                actionText: "Execute Test Suite Verification",
+                codeSnippet: "// src/calculator.ts\nexport function calculateTax(amount: number): number {\n  return amount * 1.20;\n}",
+                status: "Code generated. Pending verification run..."
+            },
+            {
+                step: 4,
+                title: "Step 4: Automated Verification Run",
+                desc: "The CLI runs `npm test` automatically. If tests pass, proceed; if they fail, error feedback feeds straight back into the LLM.",
+                actionText: "Accept Changes & Commit",
+                codeSnippet: "RUNS  test/calculator.test.ts\n✓ CalculateTax > applies 20% vat correctly (2ms)\n\nTest Suites: 1 passed, 1 total",
+                status: "STATUS: PASSED (100% test coverage for feature)"
+            },
+            {
+                step: 5,
+                title: "Step 5: Micro-Commit & Clean State",
+                desc: "Commit the passing code immediately. This creates a clean checkpoint to safely roll back to if future agent steps fail.",
+                actionText: "Start Next Cycle",
+                codeSnippet: "$ git commit -m 'feat: implement tax calculator with unit test'\n[main a1b2c3d] feat: implement tax calculator\n 2 files changed, 8 insertions(+)",
+                status: "Git clean state established. Ready for next increment."
+            }
+        ];
+
+        function renderSimStep() {
+            const data = simData[simStep - 1];
+            const content = document.getElementById('sim-content');
+
+            // Update step badges visual state
+            for (let i = 1; i <= 5; i++) {
+                const el = document.getElementById(`sim-step-${i}`);
+                if (i === simStep) {
+                    el.className = "p-3 rounded-lg border border-brand-500 bg-brand-950/50 text-center transition-all shadow-md";
+                } else if (i < simStep) {
+                    el.className = "p-3 rounded-lg border border-emerald-800 bg-emerald-950/20 text-center transition-all";
+                } else {
+                    el.className = "p-3 rounded-lg border border-gray-800 bg-darkbg-900 text-center transition-all opacity-50";
+                }
+            }
+
+            content.innerHTML = `
+                <div>
+                    <h3 class="text-sm font-bold text-gray-100 mb-1">${data.title}</h3>
+                    <p class="text-xs text-gray-300 mb-4">${data.desc}</p>
+
+                    <div class="bg-black/70 rounded-lg p-3 border border-gray-800 mb-3">
+                        <pre class="code-syntax text-xs text-emerald-400 overflow-x-auto">${data.codeSnippet}</pre>
+                    </div>
+
+                    <div class="flex items-center text-xs font-semibold ${simStep === 4 ? 'text-emerald-400' : 'text-brand-400'}">
+                        <i class="fa-solid fa-circle-info mr-1.5"></i> ${data.status}
+                    </div>
+                </div>
+
+                <div class="flex justify-end space-x-2 mt-4 pt-3 border-t border-gray-800">
+                    ${simStep > 1 ? `
+                    <button onclick="prevSimStep()" class="px-3 py-1.5 text-xs bg-gray-800 hover:bg-gray-700 text-gray-200 rounded font-medium">Previous</button>
+                    ` : ''}
+                    <button onclick="nextSimStep()" class="px-4 py-1.5 text-xs bg-brand-600 hover:bg-brand-500 text-white rounded font-semibold flex items-center gap-1.5 shadow-sm">
+                        ${data.actionText} <i class="fa-solid fa-arrow-right"></i>
+                    </button>
+                </div>
+            `;
+        }
+
+        function nextSimStep() {
+            if (simStep < 5) simStep++;
+            else simStep = 1;
+            renderSimStep();
+        }
+
+        function prevSimStep() {
+            if (simStep > 1) simStep--;
+            renderSimStep();
+        }
+
+        function resetSimulator() {
+            simStep = 1;
+            renderSimStep();
+        }
+
+        // --- OPENCODE CLI GENERATOR LOGIC ---
+        const taskPresets = {
+            'custom': "",
+            'tdd-feature': "Implement the functionality in src/index.ts to pass all tests in tests/index.test.ts. Do not modify test assertions.",
+            'refactor': "Refactor src/index.ts to reduce cyclomatic complexity. Ensure strict TypeScript compliance and zero 'any' types.",
+            'bug-fix': "Analyze failing stack trace in tests/index.test.ts and patch the bug in src/index.ts gracefully.",
+            'docs-types': "Generate full JSDoc comments and explicit return types for all exported functions in src/index.ts."
+        };
+
+        function applyTaskPreset() {
+            const val = document.getElementById('cli-task-preset').value;
+            if (taskPresets[val] !== undefined) {
+                document.getElementById('cli-prompt').value = taskPresets[val];
+                updateCliOutput();
+            }
+        }
+
+        function addCustomFile() {
+            const input = document.getElementById('cli-custom-file');
+            const val = input.value.trim();
+            if (!val) return;
+
+            const container = document.querySelector('.grid.grid-cols-2.gap-2');
+            const label = document.createElement('label');
+            label.className = "flex items-center space-x-2 p-2 bg-darkbg-900 border border-gray-800 rounded hover:border-gray-700 cursor-pointer";
+            label.innerHTML = `<input type="checkbox" class="cli-file-check" value="${val}" onchange="updateCliOutput()" checked> <span class="text-gray-300 code-syntax">${val}</span>`;
+            container.appendChild(label);
+
+            input.value = '';
+            updateCliOutput();
+        }
+
+        function updateCliOutput() {
+            const prompt = document.getElementById('cli-prompt').value.trim() || "Your instruction here...";
+            const model = document.getElementById('cli-model').value;
+            const mode = document.getElementById('cli-mode').value;
+            const runTest = document.getElementById('flag-test').checked;
+            const thinking = document.getElementById('flag-thinking').checked;
+
+            // Collect files
+            const selectedFiles = [];
+            document.querySelectorAll('.cli-file-check:checked').forEach(cb => {
+                selectedFiles.push(cb.value);
+            });
+
+            // Assemble command
+            let cmd = `opencode run`;
+
+            if (model) cmd += ` --model ${model}`;
+            if (mode === 'auto') cmd += ` --auto-apply`;
+            if (mode === 'dry-run') cmd += ` --dry-run`;
+            if (runTest) cmd += ` --test "npm test"`;
+            if (thinking) cmd += ` --thinking-budget high`;
+
+            selectedFiles.forEach(f => {
+                cmd += ` -f ${f}`;
+            });
+
+            cmd += ` "${prompt.replace(/"/g, '\\"')}"`;
+
+            // Update UI
+            document.getElementById('cli-command-text').innerText = cmd;
+            document.getElementById('summary-model').innerText = model;
+            document.getElementById('summary-mode').innerText = mode;
+            document.getElementById('summary-files').innerText = selectedFiles.join(', ') || 'None';
+        }
+
+        function executeSimulatedCli() {
+            showToast("Simulated command copied! Ready to run in terminal.");
+            copyToClipboard('cli-command-text', 'cli-copy-btn');
+        }
+
+        // --- AGENT RULES GENERATOR LOGIC ---
+        function generateRulesContent() {
+            const stack = document.getElementById('rules-stack').value;
+            const tdd = document.getElementById('rule-tdd').checked;
+            const noAny = document.getElementById('rule-no-any').checked;
+            const atomic = document.getElementById('rule-atomic').checked;
+            const logging = document.getElementById('rule-logging').checked;
+
+            let rules = `# AGENT.md - Project AI Guidance Guidelines\n\n`;
+            rules += `## Tech Stack Focus\n`;
+            rules += `- Tech Stack: ${stack}\n`;
+            rules += `- Code Style: Clean, modular, well-commented functions\n\n`;
+
+            rules += `## Essential Rules & Guardrails\n`;
+            if (tdd) rules += `- TDD-First: Always check or write tests prior to modifying core implementation.\n`;
+            if (noAny) rules += `- Strict Types: Never use 'any' or implicit any types. Prefer explicit return types.\n`;
+            if (atomic) rules += `- Atomic Changes: Limit edits to small, focused modifications (max 2 files per turn).\n`;
+            if (logging) rules += `- Clean Production Code: Remove temporary debug console.log statements prior to finalizing.\n`;
+
+            rules += `\n## Verification Process\n`;
+            rules += `1. Before finalizing edits, run \`npm test\` to confirm zero regressions.\n`;
+            rules += `2. Ensure all newly exposed functions are accompanied by corresponding tests.\n`;
+
+            document.getElementById('rules-output-text').value = rules;
+        }
+
+        // --- TAB SWITCHER LOGIC ---
+        function switchTab(tabId) {
+            const tabs = ['insights', 'simulator', 'opencode', 'rules'];
+            tabs.forEach(t => {
+                const view = document.getElementById(`view-${t}`);
+                const btn = document.getElementById(`tab-${t}`);
+                if (t === tabId) {
+                    view.classList.remove('hidden');
+                    view.classList.add('flex');
+                    btn.className = "tab-active px-4 py-3 text-sm font-medium flex items-center space-x-2 transition-all whitespace-nowrap";
+                } else {
+                    view.classList.add('hidden');
+                    view.classList.remove('flex');
+                    btn.className = "px-4 py-3 text-sm font-medium text-gray-400 hover:text-gray-200 flex items-center space-x-2 transition-all whitespace-nowrap";
+                }
+            });
+        }
+
+        // --- UTILITY: Copy to Clipboard & Toast ---
+        function copyToClipboard(elementId, btnId) {
+            const el = document.getElementById(elementId);
+            const text = el.innerText || el.value;
+
+            // Fallback execCommand copy for browser compatibility
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                showToast("Copied to clipboard!");
+            } catch (err) {
+                showToast("Failed to copy");
+            }
+            document.body.removeChild(textarea);
+        }
+
+        function copySnippet(text) {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            showToast("Directive prompt copied!");
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-msg').innerText = msg;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 2500);
+        }
+
+        // --- INITIALIZATION ON WINDOW LOAD ---
+        window.onload = function() {
+            renderInsights(insightsData);
+            renderSimStep();
+            applyTaskPreset();
+            generateRulesContent();
+        };
+    </script>
+</body>
+</html>
