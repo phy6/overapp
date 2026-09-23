@@ -4,169 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OverApp Command Center</title>
-    <script src="https://cdn.tailwindcss.com">
-// === SYSTEM TAB ===
-async function refreshProcesses() {
-    try {
-        const res = await fetch('http://127.0.0.1:3011/api/processes');
-        const data = await res.json();
-        if (!data.success) return;
-        const { processes, ports, resources } = data.data;
-        
-        // System resources
-        const resDiv = document.getElementById('system-resources');
-        if (resources.memory) {
-            resDiv.innerHTML = `
-                <div class="flex items-center justify-between"><span class="text-slate-400">Memory</span><span class="font-mono">${resources.memory.usedGB} / ${resources.memory.totalGB} GB (${resources.memory.usagePct}%)</span></div>
-                <div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-emerald-500 h-2 rounded-full" style="width:${resources.memory.usagePct}%"></div></div>
-                <div class="flex items-center justify-between mt-2"><span class="text-slate-400">Disk</span><span class="font-mono">${resources.disk.used || 'N/A'} / ${resources.disk.total || 'N/A'} (${resources.disk.pct || 'N/A'})</span></div>
-                <div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-blue-500 h-2 rounded-full" style="width:${parseFloat(resources.disk.pct || '0').toFixed(0)}%"></div></div>
-            `;
-        }
-        
-        // Ports
-        const portsDiv = document.getElementById('listening-ports');
-        portsDiv.innerHTML = ports.map(p => `<div class="flex items-center justify-between p-2 bg-slate-800 rounded"><span class="font-mono text-slate-300">${p.port}</span><span class="text-xs text-slate-400">${p.process} (PID: ${p.pid})</span></div>`).join('') || 'No listening ports';
-        
-        // Process table
-        const tableBody = document.getElementById('processTable');
-        const topProcesses = processes.slice(0, 30);
-        tableBody.innerHTML = topProcesses.map(p => `
-            <tr class="border-b border-slate-800 hover:bg-slate-800/50">
-                <td class="p-2 font-mono text-slate-300">${p.pid}</td>
-                <td class="p-2 text-slate-400">${p.user}</td>
-                <td class="p-2 ${parseFloat(p.cpu) > 50 ? 'text-red-400 font-bold' : 'text-slate-300'}">${p.cpu}%</td>
-                <td class="p-2 text-slate-300">${p.mem}%</td>
-                <td class="p-2 font-mono text-xs text-slate-300 max-w-md truncate" title="${p.command}">${p.command.substring(0, 60)}</td>
-                <td class="p-2"><button onclick="killProc('${p.pid}')" class="px-2 py-0.5 bg-red-900/50 hover:bg-red-800 text-red-300 rounded text-xs">Kill</button></td>
-            </tr>
-        `).join('');
-    } catch(e) {}
-}
-
-async function killProc(pid) {
-    if (!confirm(`Kill process ${pid}?`)) return;
-    try {
-        const res = await fetch('http://127.0.0.1:3011/api/processes/kill', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({pid}) });
-        const data = await res.json();
-        if (data.success) refreshProcesses();
-    } catch(e) {}
-}
-
-// === MCP TAB ===
-async function refreshMcp() {
-    try {
-        const [mcpRes, hooksRes] = await Promise.all([
-            fetch('http://127.0.0.1:3011/api/mcp'),
-            fetch('http://127.0.0.1:3011/api/hooks')
-        ]);
-        const mcpData = await mcpRes.json();
-        const hooksData = await hooksRes.json();
-        if (!mcpData.success) return;
-        document.getElementById('mcp-count').textContent = mcpData.data.count;
-        
-        const serversDiv = document.getElementById('mcp-servers');
-        serversDiv.innerHTML = mcpData.data.servers.map(s => `
-            <div class="p-3 bg-slate-800 rounded-lg border border-slate-700">
-                <div class="flex items-center justify-between mb-1">
-                    <span class="font-semibold text-slate-200">${s.name}</span>
-                    <span class="px-1.5 py-0.5 ${s.type === 'http' ? 'bg-blue-900 text-blue-300' : 'bg-emerald-900 text-emerald-300'} rounded text-xs">${s.type}</span>
-                </div>
-                <div class="text-xs text-slate-400 font-mono mb-1">${s.command} ${(s.args||[]).join(' ')}</div>
-                ${s.description ? `<div class="text-xs text-slate-500">${s.description.substring(0, 80)}...</div>` : ''}
-                ${s.hasEnv ? '<span class="text-xs text-amber-400">⚠ Has env vars</span>' : ''}
-            </div>
-        `).join('') || 'No MCP servers configured';
-        
-        const hooksDiv = document.getElementById('ecc-hooks');
-        const hooks = hooksData.success ? hooksData.data : [];
-        hooksDiv.innerHTML = hooks.map(h => `
-            <div class="p-2 bg-slate-800 rounded text-xs">
-                <span class="px-1.5 py-0.5 bg-purple-900 text-purple-300 rounded">${h.matcher}</span>
-                <span class="text-slate-400 font-mono ml-1">${h.command.substring(0, 50)}...</span>
-            </div>
-        `).join('') || 'No ECC hooks configured';
-    } catch(e) {}
-}
-
-// === OPENCODE TAB ===
-async function refreshOpenCode() {
-    try {
-        const [configRes, agentsRes, cmdsRes, sessionsRes, logsRes] = await Promise.all([
-            fetch('http://127.0.0.1:3011/api/opencode/config'),
-            fetch('http://127.0.0.1:3011/api/opencode/agents'),
-            fetch('http://127.0.0.1:3011/api/opencode/commands'),
-            fetch('http://127.0.0.1:3011/api/opencode/sessions'),
-            fetch('http://127.0.0.1:3011/api/opencode/logs'),
-        ]);
-        
-        const config = await configRes.json();
-        if (config.success) {
-            const d = config.data;
-            const cfgDiv = document.getElementById('opencode-config');
-            cfgDiv.innerHTML = `
-                <div class="flex items-center justify-between p-3 bg-slate-800 rounded"><span class="text-slate-400">Active Model</span><span class="font-mono text-emerald-400">${d.model}</span></div>
-                <div class="flex items-center justify-between p-3 bg-slate-800 rounded"><span class="text-slate-400">Provider</span><span class="font-mono text-slate-200">${d.provider}</span></div>
-                <div class="flex items-center justify-between p-3 bg-slate-800 rounded"><span class="text-slate-400">Default Agent</span><span class="font-mono text-slate-200">${d.defaultAgent}</span></div>
-                <div class="flex items-center justify-between p-3 bg-slate-800 rounded"><span class="text-slate-400">Agents</span><span class="font-mono text-slate-200">${d.agents.length}</span></div>
-                <div class="flex items-center justify-between p-3 bg-slate-800 rounded"><span class="text-slate-400">Commands</span><span class="font-mono text-slate-200">${d.commands.length}</span></div>
-                <div class="flex items-center justify-between p-3 bg-slate-800 rounded"><span class="text-slate-400">Skill Paths</span><span class="font-mono text-slate-200">${d.skillsPaths.join(', ')}</span></div>
-            `;
-        }
-        
-        const agents = await agentsRes.json();
-        if (agents.success) {
-            document.getElementById('opencode-agents').innerHTML = agents.data.map(a => `
-                <div class="p-2 bg-slate-800 rounded"><span class="font-semibold text-slate-200">${a.name}</span> <span class="text-xs text-slate-400">(${a.files.length} files)</span></div>
-            `).join('') || 'No agents';
-        }
-        
-        const cmds = await cmdsRes.json();
-        if (cmds.success) {
-            document.getElementById('opencode-commands').innerHTML = cmds.data.map(c => `
-                <div class="p-1.5 bg-slate-800 rounded text-xs"><span class="text-slate-300 font-mono">${c.name}</span> <span class="text-slate-500">${c.title}</span></div>
-            `).join('') || 'No commands';
-        }
-        
-        const sessions = await sessionsRes.json();
-        if (sessions.success) {
-            document.getElementById('opencode-sessions').innerHTML = sessions.data.map(s => `
-                <div class="flex items-center justify-between p-2 bg-slate-800 rounded"><span class="font-mono text-slate-300 text-xs">${s.file}</span><span class="text-slate-500">${(s.size/1024).toFixed(1)}KB</span></div>
-            `).join('') || 'No sessions found';
-        }
-        
-        const logs = await logsRes.json();
-        if (logs.success) {
-            document.getElementById('opencode-logs').innerHTML = logs.data.map(l => `
-                <div class="p-3 bg-slate-800 rounded border border-slate-700">
-                    <div class="flex items-center justify-between mb-1"><span class="font-mono text-slate-300 text-xs">${l.file}</span><span class="text-slate-500 text-xs">${(l.size/1024).toFixed(1)}KB, ${l.lines} lines</span></div>
-                    <pre class="text-xs text-slate-500 font-mono overflow-x-auto max-h-20">${l.preview.substring(0, 500)}</pre>
-                </div>
-            `).join('') || 'No logs found';
-        }
-    } catch(e) {}
-}
-
-// Wire tab buttons for new tabs
-document.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-        if (btn.dataset.target === 'tab-system') refreshProcesses();
-        if (btn.dataset.target === 'tab-mcp') refreshMcp();
-        if (btn.dataset.target === 'tab-opencode') refreshOpenCode();
-    });
-});
-
-// Auto-refresh system tab every 5s
-let activeTab = 'tab-overview';
-const origTabClick = () => {};
-document.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.addEventListener('click', () => { activeTab = btn.dataset.target; });
-});
-setInterval(() => {
-    if (activeTab === 'tab-system') refreshProcesses();
-}, 5000);
-
-</script>
+    <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script>
@@ -197,20 +35,121 @@ setInterval(() => {
         .log-warn { color: #fbbf24; }
         .log-error { color: #f87171; }
         .log-action { color: #c084fc; }
-        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
-        input[type=range]::-webkit-slider-thumb {
-            -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%;
-            background: #10b981; cursor: pointer; margin-top: -6px;
-            box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
-        }
-        input[type=range]::-webkit-slider-runnable-track {
-            width: 100%; height: 4px; cursor: pointer; background: #334155; border-radius: 2px;
-        }
+        .modal-overlay { background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); }
+        .modal-content { animation: modalSlideIn 0.2s ease-out; }
+        @keyframes modalSlideIn { from { transform: translateY(20px) scale(0.95); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
+        .edu-layer { border-left: 3px solid; }
+        .edu-layer.layer-1 { border-color: #10b981; }
+        .edu-layer.layer-2 { border-color: #3b82f6; }
+        .edu-layer.layer-3 { border-color: #8b5cf6; }
+        .edu-layer.layer-4 { border-color: #f59e0b; }
+        .edu-layer.layer-5 { border-color: #ef4444; }
+        .project-node { transition: all 0.2s; }
+        .project-node:hover { transform: scale(1.05); }
+        .project-link { stroke-dasharray: 5,5; animation: dash 20s linear infinite; }
+        @keyframes dash { to { stroke-dashoffset: -100; } }
+        .blockage-indicator { animation: blink 1.5s infinite; }
+        @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+        .info-tooltip { opacity: 0; visibility: hidden; transition: all 0.2s; }
+        .info-badge:hover .info-tooltip { opacity: 1; visibility: visible; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        section { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .cost-bar { transition: width 0.5s ease; }
+        .agent-card { transition: all 0.2s; }
+        .agent-card:hover { border-color: #10b981; }
+        .routing-rule { transition: all 0.2s; }
+        .routing-rule:hover { background: rgba(16,185,129,0.05); }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-200 font-sans min-h-screen flex flex-col antialiased">
 
-<header class="sticky top-0 z-50 bg-slate-900/80 backdrop-blur-md border-b border-slate-800">
+<div id="modalOverlay" class="fixed inset-0 z-50 modal-overlay hidden items-center justify-center">
+    <div id="modalContent" class="modal-content bg-slate-900 border border-slate-700 rounded-xl p-6 max-w-lg w-full mx-4 shadow-2xl max-h-[80vh] overflow-y-auto">
+        <div class="flex items-center justify-between mb-4">
+            <h3 id="modalTitle" class="text-xl font-bold text-slate-100"></h3>
+            <button onclick="closeModal()" class="p-1 hover:bg-slate-800 rounded-lg transition-colors"><i data-lucide="x" class="w-5 h-5 text-slate-400"></i></button>
+        </div>
+        <div id="modalBody" class="text-sm text-slate-300 space-y-3"></div>
+        <div class="mt-4 flex gap-2">
+            <button onclick="closeModal()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg text-sm transition-colors">Close</button>
+        </div>
+     </div>
+ </div>
+
+ <div id="newProjectModal" class="fixed inset-0 z-50 hidden items-center justify-center" style="display:none;">
+     <div class="modal-content bg-slate-900 border border-slate-700 rounded-xl p-6 max-w-lg w-full mx-4 shadow-2xl max-h-[80vh] overflow-y-auto">
+         <div class="flex items-center justify-between mb-4">
+             <h3 class="text-xl font-bold text-slate-100">New Project</h3>
+             <button onclick="closeNewProjectModal()" class="p-1 hover:bg-slate-800 rounded-lg transition-colors"><i data-lucide="x" class="w-5 h-5 text-slate-400"></i></button>
+         </div>
+         <div class="space-y-3 text-sm">
+             <div>
+                 <label class="text-xs text-slate-400 mb-1 block">Project Name</label>
+                 <input type="text" id="newProjectName" class="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-slate-200 text-sm focus:outline-none focus:border-purple-500" placeholder="my-new-project" />
+             </div>
+             <div>
+                 <label class="text-xs text-slate-400 mb-1 block">Description (optional)</label>
+                 <textarea id="newProjectDesc" class="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-slate-200 text-sm focus:outline-none focus:border-purple-500" rows="3" placeholder="What is this project about?"></textarea>
+             </div>
+             <div>
+                 <label class="text-xs text-slate-400 mb-1 block">HTML File (optional)</label>
+                 <input type="file" id="newProjectFile" accept=".html,.htm" class="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-slate-200 text-sm" />
+                 <div class="text-xs text-slate-500 mt-1">Upload an HTML file — title and description will be auto-extracted</div>
+             </div>
+             <div id="newProjectFilePreview" class="text-xs text-slate-400"></div>
+         </div>
+         <div class="mt-4 flex gap-2">
+             <button onclick="createProject()" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm transition-colors">Create Project</button>
+             <button onclick="closeNewProjectModal()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg text-sm transition-colors">Cancel</button>
+         </div>
+</div>
+  </div>
+
+  <div id="ideaModal" class="fixed inset-0 z-50 hidden items-center justify-center" style="display:none;">
+      <div class="modal-content bg-slate-900 border border-slate-700 rounded-xl p-6 max-w-lg w-full mx-4 shadow-2xl max-h-[80vh] overflow-y-auto">
+          <div class="flex items-center justify-between mb-4">
+              <h3 class="text-xl font-bold text-slate-100">New Idea</h3>
+              <button onclick="closeIdeaModal()" class="p-1 hover:bg-slate-800 rounded-lg transition-colors"><i data-lucide="x" class="w-5 h-5 text-slate-400"></i></button>
+          </div>
+          <div class="space-y-3 text-sm">
+              <div>
+                  <label class="text-xs text-slate-400 mb-1 block">Content</label>
+                  <textarea id="ideaContent" class="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-slate-200 text-sm focus:outline-none focus:border-purple-500" rows="3" placeholder="What's on your mind?"></textarea>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                  <div>
+                      <label class="text-xs text-slate-400 mb-1 block">Weight (priority)</label>
+                      <input type="number" id="ideaWeight" value="0" class="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-slate-200 text-sm focus:outline-none focus:border-purple-500" />
+                  </div>
+                  <div>
+                      <label class="text-xs text-slate-400 mb-1 block">Category</label>
+                      <select id="ideaCategory" class="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-slate-200 text-sm focus:outline-none focus:border-purple-500">
+                          <option value="general">General</option>
+                          <option value="bulb">Bulb</option>
+                          <option value="experiment">Experiment</option>
+                          <option value="research">Research</option>
+                          <option value="todo">Todo</option>
+                          <option value="note">Note</option>
+                      </select>
+                  </div>
+              </div>
+              <div>
+                  <label class="text-xs text-slate-400 mb-1 block">Project (leave blank for global)</label>
+                  <select id="ideaProject" class="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-slate-200 text-sm focus:outline-none focus:border-purple-500">
+                      <option value="">Global</option>
+                  </select>
+              </div>
+          </div>
+          <div class="mt-4 flex gap-2">
+              <button onclick="saveIdea()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm transition-colors">Save Idea</button>
+              <button onclick="closeIdeaModal()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg text-sm transition-colors">Cancel</button>
+          </div>
+      </div>
+  </div>
+
+  <header class="sticky top-0 z-40 bg-slate-900/80 backdrop-blur-md border-b border-slate-800">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex items-center justify-between h-16">
             <div class="flex items-center gap-3">
@@ -222,10 +161,18 @@ setInterval(() => {
                     <p class="text-xs text-slate-400 font-mono">Command Center</p>
                 </div>
             </div>
-            <div class="flex items-center gap-6">
+            <div class="flex items-center gap-4">
                 <div class="hidden md:flex items-center gap-4 text-sm font-mono text-slate-400 border-r border-slate-700 pr-6">
                     <div class="flex items-center gap-2"><i data-lucide="hard-drive" class="w-4 h-4 text-slate-500"></i><span id="modelLabel">Model: qwen2.5-coder</span></div>
                     <div class="flex items-center gap-2"><i data-lucide="zap" class="w-4 h-4 text-slate-500"></i><span id="backendLabel">Backend: ollama</span></div>
+                </div>
+                <div class="relative" id="modelSelectorWrapper">
+                    <button id="modelSelectBtn" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-lg text-sm font-mono text-slate-300 flex items-center gap-2 transition-colors">
+                        <i data-lucide="git-branch" class="w-4 h-4 text-emerald-400"></i>
+                        <span id="modelSelectLabel">qwen2.5-coder</span>
+                        <i data-lucide="chevron-down" class="w-3 h-3"></i>
+                    </button>
+                    <div id="modelDropdown" class="absolute right-0 top-full mt-1 bg-slate-900 border border-slate-700 rounded-lg shadow-xl py-1 min-w-[200px] hidden z-50"></div>
                 </div>
                 <label class="relative inline-flex items-center cursor-pointer">
                     <input type="checkbox" id="connectionToggle" class="sr-only peer" checked>
@@ -234,6 +181,10 @@ setInterval(() => {
                 </label>
                 <button id="btnHandoff" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2">
                     <i data-lucide="hand-off" class="w-4 h-4"></i> Handoff
+                </button>
+                <button id="btnInfo" class="info-badge p-1.5 hover:bg-slate-800 rounded-lg transition-colors relative">
+                    <i data-lucide="help-circle" class="w-5 h-5 text-slate-400"></i>
+                    <div class="info-tooltip absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-xs text-slate-300 px-2 py-1 rounded whitespace-nowrap pointer-events-none">Learn more</div>
                 </button>
             </div>
         </div>
@@ -258,87 +209,217 @@ setInterval(() => {
 
 <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col gap-6">
     <nav class="flex overflow-x-auto border-b border-slate-800 hide-scrollbar pb-px">
-        <button class="tab-btn active px-4 py-3 font-medium text-sm text-emerald-400 border-b-2 border-emerald-500 flex items-center gap-2 whitespace-nowrap" data-target="tab-overview"><i data-lucide="layout-dashboard" class="w-4 h-4"></i> Overview</button>
-        <button class="tab-btn px-4 py-3 font-medium text-sm text-slate-400 hover:text-slate-200 border-b-2 border-transparent hover:border-slate-600 flex items-center gap-2 whitespace-nowrap transition-colors" data-target="tab-agent"><i data-lucide="git-merge" class="w-4 h-4"></i> Agent Loop</button>
-        <button class="tab-btn px-4 py-3 font-medium text-sm text-slate-400 hover:text-slate-200 border-b-2 border-transparent hover:border-slate-600 flex items-center gap-2 whitespace-nowrap transition-colors" data-target="tab-context"><i data-lucide="database" class="w-4 h-4"></i> Context Lab</button>
-        <button class="tab-btn px-4 py-3 font-medium text-sm text-slate-400 hover:text-slate-200 border-b-2 border-transparent hover:border-slate-600 flex items-center gap-2 whitespace-nowrap transition-colors" data-target="tab-mode"><i data-lucide="sliders" class="w-4 h-4"></i> LLM Mode</button>
-            <button class="tab-btn px-4 py-3 font-medium text-sm text-slate-400 hover:text-slate-200 border-b-2 border-transparent hover:border-slate-600 flex items-center gap-2 whitespace-nowrap transition-colors" data-target="tab-system"><i data-lucide="server" class="w-4 h-4"></i> System</button>
-        <button class="tab-btn px-4 py-3 font-medium text-sm text-slate-400 hover:text-slate-200 border-b-2 border-transparent hover:border-slate-600 flex items-center gap-2 whitespace-nowrap transition-colors" data-target="tab-mcp"><i data-lucide="plug" class="w-4 h-4"></i> MCP & Plugins</button>
-        <button class="tab-btn px-4 py-3 font-medium text-sm text-slate-400 hover:text-slate-200 border-b-2 border-transparent hover:border-slate-600 flex items-center gap-2 whitespace-nowrap transition-colors" data-target="tab-opencode"><i data-lucide="terminal" class="w-4 h-4"></i> OpenCode</button>
-</nav>
+        <button class="tab-btn active px-3 py-3 font-medium text-sm text-emerald-400 border-b-2 border-emerald-500 flex items-center gap-2 whitespace-nowrap" data-target="tab-overview"><i data-lucide="layout-dashboard" class="w-4 h-4"></i> Overview</button>
+        <button class="tab-btn px-3 py-3 font-medium text-sm text-slate-400 hover:text-slate-200 border-b-2 border-transparent hover:border-slate-600 flex items-center gap-2 whitespace-nowrap transition-colors" data-target="tab-agent"><i data-lucide="git-merge" class="w-4 h-4"></i> Agent Loop</button>
+        <button class="tab-btn px-3 py-3 font-medium text-sm text-slate-400 hover:text-slate-200 border-b-2 border-transparent hover:border-slate-600 flex items-center gap-2 whitespace-nowrap transition-colors" data-target="tab-context"><i data-lucide="database" class="w-4 h-4"></i> Context Lab</button>
+        <button class="tab-btn px-3 py-3 font-medium text-sm text-slate-400 hover:text-slate-200 border-b-2 border-transparent hover:border-slate-600 flex items-center gap-2 whitespace-nowrap transition-colors" data-target="tab-mode"><i data-lucide="sliders" class="w-4 h-4"></i> LLM Mode</button>
+        <button class="tab-btn px-3 py-3 font-medium text-sm text-slate-400 hover:text-slate-200 border-b-2 border-transparent hover:border-slate-600 flex items-center gap-2 whitespace-nowrap transition-colors" data-target="tab-system"><i data-lucide="server" class="w-4 h-4"></i> System</button>
+        <button class="tab-btn px-3 py-3 font-medium text-sm text-slate-400 hover:text-slate-200 border-b-2 border-transparent hover:border-slate-600 flex items-center gap-2 whitespace-nowrap transition-colors" data-target="tab-projects"><i data-lucide="map" class="w-4 h-4"></i> Projects</button>
+         <button class="tab-btn px-3 py-3 font-medium text-sm text-slate-400 hover:text-slate-200 border-b-2 border-transparent hover:border-slate-600 flex items-center gap-2 whitespace-nowrap transition-colors" data-target="tab-ideas"><i data-lucide="lightbulb" class="w-4 h-4"></i> Ideas</button>
+        <button class="tab-btn px-3 py-3 font-medium text-sm text-slate-400 hover:text-slate-200 border-b-2 border-transparent hover:border-slate-600 flex items-center gap-2 whitespace-nowrap transition-colors" data-target="tab-usage"><i data-lucide="bar-chart-3" class="w-4 h-4"></i> Usage</button>
+        <button class="tab-btn px-3 py-3 font-medium text-sm text-slate-400 hover:text-slate-200 border-b-2 border-transparent hover:border-slate-600 flex items-center gap-2 whitespace-nowrap transition-colors" data-target="tab-routing"><i data-lucide="route" class="w-4 h-4"></i> Prompt Route</button>
+        <button class="tab-btn px-3 py-3 font-medium text-sm text-slate-400 hover:text-slate-200 border-b-2 border-transparent hover:border-slate-600 flex items-center gap-2 whitespace-nowrap transition-colors" data-target="tab-mcp"><i data-lucide="plug" class="w-4 h-4"></i> MCP & Plugins</button>
+        <button class="tab-btn px-3 py-3 font-medium text-sm text-slate-400 hover:text-slate-200 border-b-2 border-transparent hover:border-slate-600 flex items-center gap-2 whitespace-nowrap transition-colors" data-target="tab-about"><i data-lucide="info" class="w-4 h-4"></i> About</button>
+        <button class="tab-btn px-3 py-3 font-medium text-sm text-slate-400 hover:text-slate-200 border-b-2 border-transparent hover:border-slate-600 flex items-center gap-2 whitespace-nowrap transition-colors" data-target="tab-opencode"><i data-lucide="terminal" class="w-4 h-4"></i> OpenCode</button>
+    </nav>
 
     <div class="relative w-full flex-1">
-        <div id="tab-overview" class="tab-content block space-y-6">
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg">
-                    <div class="flex items-center justify-between mb-2"><span class="text-sm font-medium text-slate-400">Generation Speed</span><i data-lucide="zap" class="w-4 h-4 text-amber-400"></i></div>
-                    <div class="flex items-end gap-2"><span class="text-3xl font-bold text-slate-100" id="metric-tps">--</span><span class="text-sm font-mono text-slate-500 mb-1">t/s</span></div>
-                </div>
-                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg">
-                    <div class="flex items-center justify-between mb-2"><span class="text-sm font-medium text-slate-400">VRAM Allocation</span><i data-lucide="memory-stick" class="w-4 h-4 text-blue-400"></i></div>
-                    <div class="flex items-end gap-2"><span class="text-3xl font-bold text-slate-100" id="metric-vram">--</span><span class="text-sm font-mono text-slate-500 mb-1">/ GB</span></div>
-                    <div class="mt-2 w-full bg-slate-800 rounded-full h-1.5"><div class="bg-blue-500 h-1.5 rounded-full" id="vram-bar" style="width:0%"></div></div>
-                </div>
-                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg">
-                    <div class="flex items-center justify-between mb-2"><span class="text-sm font-medium text-slate-400">Active Context</span><i data-lucide="layers" class="w-4 h-4 text-purple-400"></i></div>
-                    <div class="flex items-end gap-2"><span class="text-3xl font-bold text-slate-100" id="metric-context">--</span><span class="text-sm font-mono text-slate-500 mb-1">tokens</span></div>
-                </div>
-                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg">
-                    <div class="flex items-center justify-between mb-2"><span class="text-sm font-medium text-slate-400">Models Loaded</span><i data-lucide="layers" class="w-4 h-4 text-emerald-400"></i></div>
-                    <div class="flex items-end gap-2"><span class="text-3xl font-bold text-slate-100" id="metric-models">0</span></div>
-                </div>
-            </div>
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[450px]">
-                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg flex flex-col">
-                    <div class="flex items-center justify-between mb-4"><h2 class="text-lg font-semibold flex items-center gap-2"><i data-lucide="activity-square" class="w-5 h-5 text-blue-400"></i> Performance Telemetry</h2></div>
-                    <div class="relative flex-1 w-full"><canvas id="performanceChart"></canvas></div>
-                </div>
-                <div class="bg-[#0a0f18] border border-slate-700 rounded-xl shadow-lg flex flex-col overflow-hidden relative glow-slate">
-                    <div class="bg-slate-800/80 backdrop-blur border-b border-slate-700 px-4 py-2 flex items-center justify-between">
-                        <div class="flex items-center gap-2"><i data-lucide="terminal-square" class="w-4 h-4 text-slate-400"></i><span class="text-sm font-mono text-slate-300">overapp.log</span></div>
-                        <label class="flex items-center gap-2 cursor-pointer text-xs font-mono text-slate-400"><input type="checkbox" id="autoScrollToggle" checked class="rounded border-slate-600">Auto-scroll</label>
+        <div id="tab-overview" class="tab-content active space-y-8">
+            <!-- Section: System Health -->
+            <section>
+                <div class="flex items-center gap-2 mb-4"><i data-lucide="dashboard" class="w-5 h-5 text-emerald-400"></i><h2 class="text-lg font-bold text-slate-100">System Health</h2><span class="text-xs text-slate-500 font-mono">Real-time resource overview</span></div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg">
+                        <div class="flex items-center justify-between mb-2"><span class="text-sm font-medium text-slate-400">CPU Temp</span><i data-lucide="thermometer" class="w-4 h-4 text-red-400"></i></div>
+                        <div class="flex items-end gap-2"><span class="text-3xl font-bold text-slate-100" id="metric-temp">--</span><span class="text-sm font-mono text-slate-500 mb-1">°C</span></div>
                     </div>
-                    <div id="terminalOutput" class="flex-1 p-4 font-mono text-sm overflow-y-auto whitespace-pre-wrap break-words"></div>
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg">
+                        <div class="flex items-center justify-between mb-2"><span class="text-sm font-medium text-slate-400">Memory</span><i data-lucide="memory" class="w-4 h-4 text-blue-400"></i></div>
+                        <div class="flex items-end gap-2"><span class="text-3xl font-bold text-slate-100" id="metric-mem">--</span><span class="text-sm font-mono text-slate-500 mb-1">GB</span></div>
+                        <div class="mt-2 w-full bg-slate-800 rounded-full h-1.5"><div class="bg-blue-500 h-1.5 rounded-full" id="mem-bar" style="width:0%"></div></div>
+                    </div>
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg">
+                        <div class="flex items-center justify-between mb-2"><span class="text-sm font-medium text-slate-400">Disk</span><i data-lucide="hard-drive" class="w-4 h-4 text-emerald-400"></i></div>
+                        <div class="flex items-end gap-2"><span class="text-3xl font-bold text-slate-100" id="metric-disk">--</span><span class="text-sm font-mono text-slate-500 mb-1">GB</span></div>
+                        <div class="mt-2 w-full bg-slate-800 rounded-full h-1.5"><div class="bg-emerald-500 h-1.5 rounded-full" id="disk-bar" style="width:0%"></div></div>
+                    </div>
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg">
+                        <div class="flex items-center justify-between mb-2"><span class="text-sm font-medium text-slate-400">CPU Load</span><i data-lucide="cpu" class="w-4 h-4 text-amber-400"></i></div>
+                        <div class="flex items-end gap-2"><span class="text-3xl font-bold text-slate-100" id="metric-cpu">--</span><span class="text-sm font-mono text-slate-500 mb-1">%</span></div>
+                    </div>
                 </div>
-            </div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg flex flex-col">
+                        <div class="flex items-center justify-between mb-4"><h2 class="text-lg font-semibold flex items-center gap-2"><i data-lucide="activity" class="w-5 h-5 text-emerald-400"></i> Resource Details</h2><span class="text-xs text-slate-500 font-mono" id="uptime">--</span></div>
+                        <div id="system-details" class="space-y-2 text-sm flex-1">Loading...</div>
+                    </div>
+                    <div class="bg-[#0a0f18] border border-slate-700 rounded-xl shadow-lg flex flex-col overflow-hidden relative glow-slate">
+                        <div class="bg-slate-800/80 backdrop-blur border-b border-slate-700 px-4 py-2 flex items-center justify-between">
+                            <div class="flex items-center gap-2"><i data-lucide="terminal-square" class="w-4 h-4 text-slate-400"></i><span class="text-sm font-mono text-slate-300">overapp.log</span></div>
+                            <label class="flex items-center gap-2 cursor-pointer text-xs font-mono text-slate-400"><input type="checkbox" id="autoScrollToggle" checked class="rounded border-slate-600">Auto-scroll</label>
+                        </div>
+                        <div id="terminalOutput" class="flex-1 p-4 font-mono text-sm overflow-y-auto whitespace-pre-wrap break-words"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section: Workspaces & Tickets -->
+            <section>
+                <div class="flex items-center gap-2 mb-4"><i data-lucide="folder-sync" class="w-5 h-5 text-purple-400"></i><h2 class="text-lg font-bold text-slate-100">Workspaces & Tickets</h2><span class="text-xs text-slate-500 font-mono">Project status and issue tracking</span></div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                        <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><i data-lucide="map" class="w-5 h-5 text-purple-400"></i> Workspace Status</h2>
+                        <div id="workspaceStatus" class="space-y-3 text-sm">Loading...</div>
+                    </div>
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                        <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><i data-lucide="ticket" class="w-5 h-5 text-amber-400"></i> GitHub Tickets</h2>
+                        <div id="ticketsStatus" class="space-y-3 text-sm">Loading...</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section: Educational Context -->
+            <section>
+                <div class="flex items-center gap-2 mb-4"><i data-lucide="book-open" class="w-5 h-5 text-emerald-400"></i><h2 class="text-lg font-bold text-slate-100">Educational Context</h2><span class="text-xs text-slate-500 font-normal">(click any layer to learn more)</span></div>
+                <div class="space-y-3">
+                    <div class="edu-layer layer-1 bg-slate-800 rounded-lg p-3 cursor-pointer" onclick="openModal('layer-concept')">
+                        <div class="flex items-center justify-between mb-1"><span class="text-emerald-400 font-mono text-xs">LAYER 1</span><span class="text-sm font-medium text-slate-200">Foundation</span></div>
+                        <p class="text-xs text-slate-400">Base instructions and project context. Click to learn more.</p>
+                    </div>
+                    <div class="edu-layer layer-2 bg-slate-800 rounded-lg p-3 cursor-pointer" onclick="openModal('skills')">
+                        <div class="flex items-center justify-between mb-1"><span class="text-blue-400 font-mono text-xs">LAYER 2</span><span class="text-sm font-medium text-slate-200">Domain Knowledge</span></div>
+                        <p class="text-xs text-slate-400">Domain-specific terms, patterns, and conventions from CONTEXT.md.</p>
+                    </div>
+                    <div class="edu-layer layer-3 bg-slate-800 rounded-lg p-3 cursor-pointer" onclick="openModal('blockage')">
+                        <div class="flex items-center justify-between mb-1"><span class="text-purple-400 font-mono text-xs">LAYER 3</span><span class="text-sm font-medium text-slate-200">Decision Framework</span></div>
+                        <p class="text-xs text-slate-400">WAYFINDER.md decision nodes, fog items, and priority paths.</p>
+                    </div>
+                    <div class="edu-layer layer-4 bg-slate-800 rounded-lg p-3 cursor-pointer" onclick="openModal('mode-toggle')">
+                        <div class="flex items-center justify-between mb-1"><span class="text-amber-400 font-mono text-xs">LAYER 4</span><span class="text-sm font-medium text-slate-200">Active Reasoning</span></div>
+                        <p class="text-xs text-slate-400">Current agent thought process, observations, and action plans.</p>
+                    </div>
+                    <div class="edu-layer layer-5 bg-slate-800 rounded-lg p-3 cursor-pointer" onclick="openModal('telemetry')">
+                        <div class="flex items-center justify-between mb-1"><span class="text-red-400 font-mono text-xs">LAYER 5</span><span class="text-sm font-medium text-slate-200">Full Context</span></div>
+                        <p class="text-xs text-slate-400">Complete project history, all artifacts, and system state.</p>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <div id="tab-about" class="tab-content space-y-6">
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
-                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><i data-lucide="map" class="w-5 h-5 text-purple-400"></i> Workspace Status</h2>
-                    <div id="workspaceStatus" class="space-y-3 text-sm">Loading...</div>
+                    <h2 class="text-xl font-bold mb-4 flex items-center gap-2"><i data-lucide="cpu" class="w-6 h-6 text-emerald-400"></i> OverApp Command Center</h2>
+                    <p class="text-sm text-slate-300 mb-4">A local-first project management and IDE-like application that provides real-time system monitoring, project visualization, prompt routing, cost tracking, and educational layers — all in one dashboard.</p>
+                    <div class="space-y-3 text-sm">
+                        <div class="flex items-start gap-3"><div class="p-2 bg-emerald-500/10 rounded-lg shrink-0 mt-0.5"><i data-lucide="server" class="w-4 h-4 text-emerald-400"></i></div><div><span class="font-semibold text-slate-200">Daemon Architecture</span><p class="text-slate-400">Node.js/Express server running on 127.0.0.1:3011. All API calls are local-only — no external traffic leaves your machine.</p></div></div>
+                        <div class="flex items-start gap-3"><div class="p-2 bg-blue-500/10 rounded-lg shrink-0 mt-0.5"><i data-lucide="database" class="w-4 h-4 text-blue-400"></i></div><div><span class="font-semibold text-slate-200">SSE Streaming</span><p class="text-slate-400">Server-Sent Events push telemetry, logs, and updates to the frontend in real time.</p></div></div>
+                        <div class="flex items-start gap-3"><div class="p-2 bg-purple-500/10 rounded-lg shrink-0 mt-0.5"><i data-lucide="layers" class="w-4 h-4 text-purple-400"></i></div><div><span class="font-semibold text-slate-200">Educational Layers</span><p class="text-slate-400">Five context layers (Foundation → Full Context) teach you how agent context depth works. Click any layer for details.</p></div></div>
+                        <div class="flex items-start gap-3"><div class="p-2 bg-amber-500/10 rounded-lg shrink-0 mt-0.5"><i data-lucide="route" class="w-4 h-4 text-amber-400"></i></div><div><span class="font-semibold text-slate-200">Prompt Router</span><p class="text-slate-400">Classifies tasks into Simple/Standard/Complex routes and selects the optimal model — model-agnostic and cost-aware.</p></div></div>
+                        <div class="flex items-start gap-3"><div class="p-2 bg-red-500/10 rounded-lg shrink-0 mt-0.5"><i data-lucide="shield" class="w-4 h-4 text-red-400"></i></div><div><span class="font-semibold text-slate-200">Security Guardrails</span><p class="text-slate-400">Destructive commands (push --force, reset --hard, rm -rf) are blocked. All bindings are localhost only.</p></div></div>
+                    </div>
                 </div>
                 <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
-                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><i data-lucide="ticket" class="w-5 h-5 text-amber-400"></i> GitHub Tickets</h2>
-                    <div id="ticketsStatus" class="space-y-3 text-sm">Loading...</div>
-                </div>
-            </div>
-        </div>
-
-        <div id="tab-agent" class="tab-content hidden space-y-6">
-            <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
-                <h2 class="text-xl font-bold mb-4 flex items-center gap-2"><i data-lucide="git-branch-plus" class="w-5 h-5 text-purple-400"></i> Autonomous ReAct Loop</h2>
-                <div class="flex flex-col md:flex-row items-center justify-center gap-4 text-center">
-                    <div class="bg-slate-800 border border-slate-700 p-4 rounded-lg w-full md:w-48"><i data-lucide="user" class="w-8 h-8 text-blue-400 mx-auto mb-2"></i><h3 class="font-semibold text-slate-200">User Prompt</h3></div>
-                    <i data-lucide="arrow-right" class="w-6 h-6 text-slate-600 hidden md:block"></i>
-                    <div class="border-2 border-dashed border-emerald-500/50 rounded-xl p-4 flex flex-col md:flex-row gap-4 relative bg-emerald-500/5">
-                        <span class="absolute -top-3 left-4 bg-slate-900 px-2 text-xs font-mono text-emerald-400 border border-emerald-500/50 rounded">WHILE !RESOLVED</span>
-                        <div class="bg-slate-800 border border-slate-700 p-4 rounded-lg w-full md:w-40"><i data-lucide="brain-circuit" class="w-8 h-8 text-emerald-400 mx-auto mb-2"></i><h3 class="font-semibold text-slate-200">Thought</h3></div>
-                        <i data-lucide="arrow-right" class="w-6 h-6 text-slate-500 self-center hidden md:block"></i>
-                        <div class="bg-slate-800 border border-slate-700 p-4 rounded-lg w-full md:w-40"><i data-lucide="wrench" class="w-8 h-8 text-amber-400 mx-auto mb-2"></i><h3 class="font-semibold text-slate-200">Action</h3></div>
-                        <i data-lucide="arrow-right" class="w-6 h-6 text-slate-500 self-center hidden md:block"></i>
-                        <div class="bg-slate-800 border border-slate-700 p-4 rounded-lg w-full md:w-40"><i data-lucide="eye" class="w-8 h-8 text-blue-400 mx-auto mb-2"></i><h3 class="font-semibold text-slate-200">Observation</h3></div>
+                    <h2 class="text-xl font-bold mb-4 flex items-center gap-2"><i data-lucide="list-todo" class="w-6 h-6 text-blue-400"></i> How It Works</h2>
+                    <div class="space-y-4">
+                        <div class="flex gap-4 items-start">
+                            <div class="flex flex-col items-center"><div class="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-sm">1</div><div class="w-px bg-slate-700 flex-1 mt-2"></div></div>
+                            <div><span class="font-semibold text-slate-200">User Prompt</span><p class="text-xs text-slate-400">You type a task or command in the agent loop.</p></div>
+                        </div>
+                        <div class="flex gap-4 items-start">
+                            <div class="flex flex-col items-center"><div class="w-8 h-8 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-sm">2</div><div class="w-px bg-slate-700 flex-1 mt-2"></div></div>
+                            <div><span class="font-semibold text-slate-200">Prompt Router</span><p class="text-xs text-slate-400">Task is classified (Simple/Standard/Complex) and routed to the optimal model.</p></div>
+                        </div>
+                        <div class="flex gap-4 items-start">
+                            <div class="flex flex-col items-center"><div class="w-8 h-8 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center font-bold text-sm">3</div><div class="w-px bg-slate-700 flex-1 mt-2"></div></div>
+                            <div><span class="font-semibold text-slate-200">ReAct Loop</span><p class="text-xs text-slate-400">Agent thinks → acts → observes → repeats until the task is resolved.</p></div>
+                        </div>
+                        <div class="flex gap-4 items-start">
+                            <div class="flex flex-col items-center"><div class="w-8 h-8 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-sm">4</div><div class="w-px bg-slate-700 flex-1 mt-2"></div></div>
+                            <div><span class="font-semibold text-slate-200">Cost Tracking</span><p class="text-xs text-slate-400">Every request is logged and tracked against your daily/weekly budget.</p></div>
+                        </div>
+                        <div class="flex gap-4 items-start">
+                            <div class="flex flex-col items-center"><div class="w-8 h-8 rounded-full bg-red-500/20 text-red-400 flex items-center justify-center font-bold text-sm">5</div><div></div></div>
+                            <div><span class="font-semibold text-slate-200">Handoff</span><p class="text-xs text-slate-400">When done, generate a handoff document to pass context to the next session or team member.</p></div>
+                        </div>
                     </div>
-                    <i data-lucide="arrow-right" class="w-6 h-6 text-slate-600 hidden md:block"></i>
-                    <div class="bg-slate-800 border border-slate-700 p-4 rounded-lg w-full md:w-48"><i data-lucide="check-circle-2" class="w-8 h-8 text-emerald-400 mx-auto mb-2"></i><h3 class="font-semibold text-slate-200">Final Answer</h3></div>
                 </div>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center gap-4"><div class="p-3 bg-blue-500/10 rounded-lg"><i data-lucide="file-search" class="w-6 h-6 text-blue-400"></i></div><div><h4 class="text-sm font-medium text-slate-400">File Reads</h4><p class="text-2xl font-bold" id="stat-reads">0</p></div></div>
-                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center gap-4"><div class="p-3 bg-amber-500/10 rounded-lg"><i data-lucide="file-edit" class="w-6 h-6 text-amber-400"></i></div><div><h4 class="text-sm font-medium text-slate-400">File Edits</h4><p class="text-2xl font-bold" id="stat-edits">0</p></div></div>
-                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center gap-4"><div class="p-3 bg-slate-700/50 rounded-lg"><i data-lucide="terminal" class="w-6 h-6 text-slate-300"></i></div><div><h4 class="text-sm font-medium text-slate-400">Bash Commands</h4><p class="text-2xl font-bold" id="stat-bash">0</p></div></div>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><i data-lucide="layers" class="w-5 h-5 text-emerald-400"></i> Architecture</h2>
+                    <div class="space-y-2 text-sm">
+                        <div class="p-3 bg-slate-800 rounded-lg"><span class="text-emerald-400 font-mono text-xs">FRONTEND</span><p class="text-xs text-slate-400 mt-1">index.html — Single-page app with 11 tabs, Chart.js charts, Lucide icons</p></div>
+                        <div class="p-3 bg-slate-800 rounded-lg"><span class="text-blue-400 font-mono text-xs">DAEMON</span><p class="text-xs text-slate-400 mt-1">overapp-daemon.js — Express server, 20+ REST endpoints, SSE streaming</p></div>
+                        <div class="p-3 bg-slate-800 rounded-lg"><span class="text-purple-400 font-mono text-xs">LIBS</span><p class="text-xs text-slate-400 mt-1">8 modules: system-stats, process-manager, ollama-telemetry, project-graph, prompt-router, cost-tracker, opencode-config, handoff-engine</p></div>
+                        <div class="p-3 bg-slate-800 rounded-lg"><span class="text-amber-400 font-mono text-xs">WORKSPACES</span><p class="text-xs text-slate-400 mt-1">dublin-opendata, The_Activist3 — scanned for git state, artifacts, tickets</p></div>
+                    </div>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><i data-lucide="plug" class="w-5 h-5 text-blue-400"></i> API Endpoints</h2>
+                    <div class="space-y-1 text-xs font-mono">
+                        <div class="flex items-center gap-2 p-1.5 bg-slate-800 rounded"><span class="text-emerald-400">GET</span><span class="text-slate-300">/api/system/info</span></div>
+                        <div class="flex items-center gap-2 p-1.5 bg-slate-800 rounded"><span class="text-emerald-400">GET</span><span class="text-slate-300">/api/system/resources</span></div>
+                        <div class="flex items-center gap-2 p-1.5 bg-slate-800 rounded"><span class="text-emerald-400">GET</span><span class="text-slate-300">/api/system/cpu</span></div>
+                        <div class="flex items-center gap-2 p-1.5 bg-slate-800 rounded"><span class="text-emerald-400">GET</span><span class="text-slate-300">/api/system/network</span></div>
+                        <div class="flex items-center gap-2 p-1.5 bg-slate-800 rounded"><span class="text-emerald-400">GET</span><span class="text-slate-300">/api/processes</span></div>
+                        <div class="flex items-center gap-2 p-1.5 bg-slate-800 rounded"><span class="text-emerald-400">GET</span><span class="text-slate-300">/api/info</span></div>
+                        <div class="flex items-center gap-2 p-1.5 bg-slate-800 rounded"><span class="text-emerald-400">GET</span><span class="text-slate-300">/api/info/:id</span></div>
+                        <div class="flex items-center gap-2 p-1.5 bg-slate-800 rounded"><span class="text-emerald-400">GET</span><span class="text-slate-300">/api/projects/graph</span></div>
+                        <div class="flex items-center gap-2 p-1.5 bg-slate-800 rounded"><span class="text-emerald-400">GET</span><span class="text-slate-300">/api/telemetry</span></div>
+                        <div class="flex items-center gap-2 p-1.5 bg-slate-800 rounded"><span class="text-emerald-400">GET</span><span class="text-slate-300">/api/usage/cost-history</span></div>
+                        <div class="flex items-center gap-2 p-1.5 bg-slate-800 rounded"><span class="text-emerald-400">POST</span><span class="text-slate-300">/api/handoff</span></div>
+                        <div class="flex items-center gap-2 p-1.5 bg-slate-800 rounded"><span class="text-emerald-400">GET</span><span class="text-slate-300">/api/stream</span></div>
+                    </div>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><i data-lucide="book-open" class="w-5 h-5 text-amber-400"></i> Educational Layers</h2>
+                    <div class="space-y-2 text-sm">
+                        <div class="p-2 bg-slate-800 rounded border-l-2 border-emerald-400"><span class="text-emerald-400 font-mono text-xs">LAYER 1</span><p class="text-xs text-slate-400">Foundation — base instructions</p></div>
+                        <div class="p-2 bg-slate-800 rounded border-l-2 border-blue-400"><span class="text-blue-400 font-mono text-xs">LAYER 2</span><p class="text-xs text-slate-400">Domain Knowledge — CONTEXT.md terms</p></div>
+                        <div class="p-2 bg-slate-800 rounded border-l-2 border-purple-400"><span class="text-purple-400 font-mono text-xs">LAYER 3</span><p class="text-xs text-slate-400">Decision Framework — WAYFINDER nodes</p></div>
+                        <div class="p-2 bg-slate-800 rounded border-l-2 border-amber-400"><span class="text-amber-400 font-mono text-xs">LAYER 4</span><p class="text-xs text-slate-400">Active Reasoning — agent thoughts</p></div>
+                        <div class="p-2 bg-slate-800 rounded border-l-2 border-red-400"><span class="text-red-400 font-mono text-xs">LAYER 5</span><p class="text-xs text-slate-400">Full Context — all artifacts + state</p></div>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-4">Click any layer card on the Overview tab to open its modal. Close with Escape or the X button.</p>
+                </div>
             </div>
         </div>
 
-        <div id="tab-context" class="tab-content hidden space-y-6">
+        <div id="tab-agent" class="tab-content space-y-8">
+            <!-- Section: ReAct Loop -->
+            <section>
+                <div class="flex items-center gap-2 mb-4"><i data-lucide="git-branch-plus" class="w-5 h-5 text-purple-400"></i><h2 class="text-lg font-bold text-slate-100">Autonomous ReAct Loop</h2></div>
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                    <div class="flex flex-col md:flex-row items-center justify-center gap-4 text-center">
+                        <div class="bg-slate-800 border border-slate-700 p-4 rounded-lg w-full md:w-48"><i data-lucide="user" class="w-8 h-8 text-blue-400 mx-auto mb-2"></i><h3 class="font-semibold text-slate-200">User Prompt</h3></div>
+                        <i data-lucide="arrow-right" class="w-6 h-6 text-slate-600 hidden md:block"></i>
+                        <div class="border-2 border-dashed border-emerald-500/50 rounded-xl p-4 flex flex-col md:flex-row gap-4 relative bg-emerald-500/5">
+                            <span class="absolute -top-3 left-4 bg-slate-900 px-2 text-xs font-mono text-emerald-400 border border-emerald-500/50 rounded">WHILE !RESOLVED</span>
+                            <div class="bg-slate-800 border border-slate-700 p-4 rounded-lg w-full md:w-40"><i data-lucide="brain-circuit" class="w-8 h-8 text-emerald-400 mx-auto mb-2"></i><h3 class="font-semibold text-slate-200">Thought</h3></div>
+                            <i data-lucide="arrow-right" class="w-6 h-6 text-slate-500 self-center hidden md:block"></i>
+                            <div class="bg-slate-800 border border-slate-700 p-4 rounded-lg w-full md:w-40"><i data-lucide="wrench" class="w-8 h-8 text-amber-400 mx-auto mb-2"></i><h3 class="font-semibold text-slate-200">Action</h3></div>
+                            <i data-lucide="arrow-right" class="w-6 h-6 text-slate-500 self-center hidden md:block"></i>
+                            <div class="bg-slate-800 border border-slate-700 p-4 rounded-lg w-full md:w-40"><i data-lucide="eye" class="w-8 h-8 text-blue-400 mx-auto mb-2"></i><h3 class="font-semibold text-slate-200">Observation</h3></div>
+                        </div>
+                        <i data-lucide="arrow-right" class="w-6 h-6 text-slate-600 hidden md:block"></i>
+                        <div class="bg-slate-800 border border-slate-700 p-4 rounded-lg w-full md:w-48"><i data-lucide="check-circle-2" class="w-8 h-8 text-emerald-400 mx-auto mb-2"></i><h3 class="font-semibold text-slate-200">Final Answer</h3></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section: Agent Statistics -->
+            <section>
+                <div class="flex items-center gap-2 mb-4"><i data-lucide="bar-chart-3" class="w-5 h-5 text-blue-400"></i><h2 class="text-lg font-bold text-slate-100">Agent Statistics</h2></div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center gap-4"><div class="p-3 bg-blue-500/10 rounded-lg"><i data-lucide="file-search" class="w-6 h-6 text-blue-400"></i></div><div><h4 class="text-sm font-medium text-slate-400">File Reads</h4><p class="text-2xl font-bold" id="stat-reads">0</p></div></div>
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center gap-4"><div class="p-3 bg-amber-500/10 rounded-lg"><i data-lucide="file-edit" class="w-6 h-6 text-amber-400"></i></div><div><h4 class="text-sm font-medium text-slate-400">File Edits</h4><p class="text-2xl font-bold" id="stat-edits">0</p></div></div>
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center gap-4"><div class="p-3 bg-slate-700/50 rounded-lg"><i data-lucide="terminal" class="w-6 h-6 text-slate-300"></i></div><div><h4 class="text-sm font-medium text-slate-400">Bash Commands</h4><p class="text-2xl font-bold" id="stat-bash">0</p></div></div>
+                </div>
+            </section>
+        </div>
+
+        <div id="tab-context" class="tab-content space-y-6">
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
                     <h2 class="text-lg font-semibold mb-1 flex items-center gap-2"><i data-lucide="calculator" class="w-5 h-5 text-emerald-400"></i> KV Cache VRAM Calculator</h2>
@@ -365,26 +446,18 @@ setInterval(() => {
                     <h2 class="text-lg font-semibold mb-1 flex items-center gap-2"><i data-lucide="minimize-2" class="w-5 h-5 text-blue-400"></i> Skill Artifact Parser</h2>
                     <p class="text-xs text-slate-500 mb-4">Parse WAYFINDER.md, CONTEXT.md, and .claude/skills/ manifests.</p>
                     <div class="space-y-4 flex-1 overflow-y-auto">
-                        <div>
-                            <h3 class="text-sm font-semibold text-purple-400 mb-2">WAYFINDER.md</h3>
-                            <div id="wayfinder-content" class="bg-slate-950 rounded-lg p-3 border border-slate-800 text-xs font-mono text-slate-300 max-h-40 overflow-y-auto">Loading...</div>
-                        </div>
-                        <div>
-                            <h3 class="text-sm font-semibold text-emerald-400 mb-2">CONTEXT.md</h3>
-                            <div id="context-content" class="bg-slate-950 rounded-lg p-3 border border-slate-800 text-xs font-mono text-slate-300 max-h-40 overflow-y-auto">Loading...</div>
-                        </div>
-                        <div>
-                            <h3 class="text-sm font-semibold text-blue-400 mb-2">Skill Manifests (.claude/skills/)</h3>
-                            <div id="skills-content" class="bg-slate-950 rounded-lg p-3 border border-slate-800 text-xs font-mono text-slate-300 max-h-40 overflow-y-auto">Loading...</div>
-                        </div>
+                        <div><h3 class="text-sm font-semibold text-purple-400 mb-2">WAYFINDER.md</h3><div id="wayfinder-content" class="bg-slate-950 rounded-lg p-3 border border-slate-800 text-xs font-mono text-slate-300 max-h-40 overflow-y-auto">Loading...</div></div>
+                        <div><h3 class="text-sm font-semibold text-emerald-400 mb-2">CONTEXT.md</h3><div id="context-content" class="bg-slate-950 rounded-lg p-3 border border-slate-800 text-xs font-mono text-slate-300 max-h-40 overflow-y-auto">Loading...</div></div>
+                        <div><h3 class="text-sm font-semibold text-blue-400 mb-2">Skill Manifests (.claude/skills/)</h3><div id="skills-content" class="bg-slate-950 rounded-lg p-3 border border-slate-800 text-xs font-mono text-slate-300 max-h-40 overflow-y-auto">Loading...</div></div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div id="tab-mode" class="tab-content hidden space-y-6">
-            <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
-                <h2 class="text-xl font-bold mb-4 flex items-center gap-2"><i data-lucide="sliders" class="w-5 h-5 text-emerald-400"></i> LLM Orchestration Mode</h2>
+        <div id="tab-mode" class="tab-content space-y-8">
+            <!-- Section: LLM Orchestration Mode -->
+            <section>
+                <div class="flex items-center gap-2 mb-4"><i data-lucide="sliders" class="w-5 h-5 text-emerald-400"></i><h2 class="text-lg font-bold text-slate-100">LLM Orchestration Mode</h2></div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div class="bg-slate-950 rounded-xl p-5 border border-slate-800">
                         <div class="flex items-center justify-between mb-4">
@@ -412,42 +485,359 @@ setInterval(() => {
                         <div id="activeResult" class="mt-4 p-3 bg-slate-900 rounded-lg text-sm text-slate-300 hidden"></div>
                     </div>
                 </div>
-            </div>
-            <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
-                <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><i data-lucide="shield" class="w-5 h-5 text-red-400"></i> Security Guardrails</h2>
+            </section>
+
+            <!-- Section: Security Guardrails -->
+            <section>
+                <div class="flex items-center gap-2 mb-4"><i data-lucide="shield" class="w-5 h-5 text-red-400"></i><h2 class="text-lg font-bold text-slate-100">Security Guardrails</h2></div>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div class="bg-slate-950 rounded-lg p-4 border border-slate-800 text-sm"><div class="flex items-center gap-2 text-emerald-400 mb-2"><i data-lucide="lock" class="w-4 h-4"></i> Local-Only</div><p class="text-xs text-slate-400">All endpoints bind to 127.0.0.1 only</p></div>
                     <div class="bg-slate-950 rounded-lg p-4 border border-slate-800 text-sm"><div class="flex items-center gap-2 text-emerald-400 mb-2"><i data-lucide="key" class="w-4 h-4"></i> No Credentials</div><p class="text-xs text-slate-400">All remote calls via gh/git binaries</p></div>
                     <div class="bg-slate-950 rounded-lg p-4 border border-slate-800 text-sm"><div class="flex items-center gap-2 text-red-400 mb-2"><i data-lucide="shield-off" class="w-4 h-4"></i> Destructive Block</div><p class="text-xs text-slate-400">push --force, reset --hard, rm -rf blocked</p></div>
                 </div>
+            </section>
+        </div>
+
+        <div id="tab-system" class="tab-content space-y-8">
+            <!-- Section: Monitoring -->
+            <section>
+                <div class="flex items-center gap-2 mb-4"><i data-lucide="activity" class="w-5 h-5 text-emerald-400"></i><h2 class="text-lg font-bold text-slate-100">Monitoring</h2><span class="text-xs text-slate-500 font-mono">Real-time system metrics</span></div>
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                        <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><i data-lucide="activity" class="w-5 h-5 text-emerald-400"></i> System Resources</h2>
+                        <div id="system-resources" class="space-y-3">Loading...</div>
+                    </div>
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                        <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><i data-lucide="radio" class="w-5 h-5 text-amber-400"></i> Listening Ports</h2>
+                        <div id="listening-ports" class="space-y-2 text-sm">Loading...</div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                        <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><i data-lucide="cpu" class="w-5 h-5 text-emerald-400"></i> CPU Monitor <span class="text-xs text-slate-500 font-normal">(educational: resource allocation context)</span></h2>
+                        <div id="cpu-stats" class="space-y-3">Loading...</div>
+                    </div>
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                        <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><i data-lucide="wifi" class="w-5 h-5 text-blue-400"></i> Network Interfaces</h2>
+                        <div id="network-stats" class="space-y-2 text-sm">Loading...</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section: Process Management -->
+            <section>
+                <div class="flex items-center gap-2 mb-4"><i data-lucide="server" class="w-5 h-5 text-purple-400"></i><h2 class="text-lg font-bold text-slate-100">Process Management</h2><span class="text-xs text-slate-500 font-mono">Running processes and tree structure</span></div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                        <div class="flex items-center justify-between mb-4">
+                            <h2 class="text-lg font-semibold flex items-center gap-2"><i data-lucide="git-commit" class="w-5 h-5 text-purple-400"></i> Process Tree <span class="text-xs text-slate-500 font-normal">(info: what spawned what — click for details)</span></h2>
+                            <button onclick="refreshProcessTree()" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg transition-colors">Refresh</button>
+                        </div>
+                        <div id="processTree" class="bg-slate-950 rounded-lg p-4 border border-slate-800 font-mono text-xs text-slate-400 overflow-x-auto whitespace-pre max-h-96 overflow-y-auto">Loading...</div>
+                    </div>
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                        <div class="flex items-center justify-between mb-4">
+                            <h2 class="text-lg font-semibold flex items-center gap-2"><i data-lucide="x-circle" class="w-5 h-5 text-red-400"></i> Running Processes <span class="text-xs text-slate-500 font-normal">(sorted by CPU)</span></h2>
+                            <button onclick="refreshProcesses()" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg transition-colors">Refresh</button>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs">
+                                <thead><tr class="border-b border-slate-800"><th class="p-2 text-slate-400">PID</th><th class="p-2 text-slate-400">USER</th><th class="p-2 text-slate-400">CPU%</th><th class="p-2 text-slate-400">MEM%</th><th class="p-2 text-slate-400">COMMAND</th><th class="p-2"></th></tr></thead>
+                                <tbody id="processTable"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <div id="tab-projects" class="tab-content space-y-8">
+            <!-- Section: Project Overview -->
+            <section>
+                <div class="flex items-center justify-between flex-wrap gap-4">
+                    <div class="flex items-center gap-2"><i data-lucide="git-network" class="w-5 h-5 text-purple-400"></i><h2 class="text-lg font-bold text-slate-100">Project Overview</h2></div>
+                    <div class="flex gap-2">
+                        <button class="project-filter-btn active px-3 py-1.5 bg-emerald-500/20 text-emerald-400 rounded-lg text-xs font-mono border border-emerald-500/30" data-filter="all">All</button>
+                        <button class="project-filter-btn px-3 py-1.5 bg-slate-800 text-slate-400 rounded-lg text-xs font-mono border border-slate-700 hover:border-emerald-500/30 transition-colors" data-filter="active">Active (>50%)</button>
+                        <button class="project-filter-btn px-3 py-1.5 bg-slate-800 text-slate-400 rounded-lg text-xs font-mono border border-slate-700 hover:border-amber-500/30 transition-colors" data-filter="blocked">Blocked</button>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg">
+                        <div class="flex items-center justify-between mb-2"><span class="text-sm font-medium text-slate-400">Total Projects</span><span class="text-2xl font-bold text-emerald-400" id="total-projects">0</span></div>
+                        <div class="mt-1 text-xs text-slate-500">Across all workspaces</div>
+                    </div>
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg">
+                        <div class="flex items-center justify-between mb-2"><span class="text-sm font-medium text-slate-400">Active (50%+)</span><span class="text-2xl font-bold text-blue-400" id="active-projects">0</span></div>
+                        <div class="mt-1 text-xs text-slate-500">Projects on track</div>
+                    </div>
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg">
+                        <div class="flex items-center justify-between mb-2"><span class="text-sm font-medium text-slate-400">Blocked</span><span class="text-2xl font-bold text-red-400" id="blocked-projects">0</span></div>
+                        <div class="mt-1 text-xs text-slate-500">Missing artifacts or blockers</div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3 mt-4">
+                    <label class="flex items-center gap-2 cursor-pointer text-xs font-mono text-slate-400"><input type="checkbox" id="autoRefreshProjects" class="rounded border-slate-600"> Auto-refresh</label>
+                    <button onclick="refreshProjectGraph()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg transition-colors flex items-center gap-1"><i data-lucide="refresh-cw" class="w-3 h-3"></i> Refresh</button>
+                </div>
+            </section>
+
+            <!-- Section: Project Map -->
+            <section>
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-2"><i data-lucide="git-network" class="w-5 h-5 text-purple-400"></i><h2 class="text-lg font-semibold flex items-center gap-2">Project Map <span class="text-xs text-slate-500 font-normal">(click nodes to expand — hover for details)</span></h2></div>
+                </div>
+                <div class="relative bg-slate-950 rounded-lg border border-slate-800 overflow-hidden" style="min-height: 400px;">
+                    <svg id="projectMapSvg" width="100%" height="420"></svg>
+                    <div id="projectTooltip" class="absolute hidden bg-slate-900 border border-slate-600 rounded-lg p-3 text-xs shadow-xl z-10 pointer-events-none" style="max-width: 250px;"></div>
+                </div>
+            </section>
+
+            <!-- Section: Details & Dependencies -->
+            <section>
+                <div class="flex items-center gap-2 mb-4"><i data-lucide="folder-sync" class="w-5 h-5 text-emerald-400"></i><h2 class="text-lg font-bold text-slate-100">Project Details &amp; Dependencies</h2></div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                        <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><i data-lucide="folder" class="w-5 h-5 text-emerald-400"></i> Project Details <span class="text-xs text-slate-500 font-normal">(click any card to explore)</span></h2>
+                        <div id="projectDetails" class="space-y-3 text-sm">Loading...</div>
+                    </div>
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                        <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><i data-lucide="link" class="w-5 h-5 text-blue-400"></i> Dependencies</h2>
+                        <div id="projectDeps" class="space-y-3 text-sm">Loading...</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section: Artifact Status -->
+            <section>
+                <div class="flex items-center gap-2 mb-4"><i data-lucide="check-circle" class="w-5 h-5 text-emerald-400"></i><h2 class="text-lg font-bold text-slate-100">Artifact Status</h2></div>
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                    <div id="artifactStatus" class="space-y-2 text-sm">Loading...</div>
+                </div>
+            </section>
+        </div> class="tab-content space-y-6">
+            <div class="flex items-center justify-between flex-wrap gap-4">
+                <div class="flex items-center gap-3">
+                    <button onclick="goBackToProjects()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg transition-colors flex items-center gap-1"><i data-lucide="arrow-left" class="w-3 h-3"></i> Back</button>
+                    <h2 class="text-xl font-bold text-slate-100" id="projectPageTitle">Project</h2>
+                </div>
+                <div class="flex items-center gap-3">
+                    <span class="px-2 py-1 bg-emerald-500/20 text-emerald-400 rounded text-xs font-mono" id="projectPageProgress">0%</span>
+                    <span class="px-2 py-1 bg-slate-800 text-slate-400 rounded text-xs font-mono" id="projectPageStatus">—</span>
+                    <button onclick="showNewProjectModal()" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs rounded-lg transition-colors flex items-center gap-1"><i data-lucide="plus" class="w-3 h-3"></i> New Project</button>
+                </div>
             </div>
-        
-        <div id="tab-system" class="tab-content hidden space-y-6">
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
-                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><i data-lucide="activity" class="w-5 h-5 text-emerald-400"></i> System Resources</h2>
-                    <div id="system-resources" class="space-y-3">Loading...</div>
+            <div id="projectPageNextAction" class="hidden p-3 bg-amber-900/20 border border-amber-800/50 rounded-lg text-sm text-amber-300 flex items-center gap-2"><i data-lucide="alert-circle" class="w-4 h-4"></i> <span id="projectPageNextActionText"></span></div>
+            <div class="flex items-center gap-2 flex-wrap" id="projectPageFilters">
+                <button class="project-filter-btn active px-2 py-1 bg-emerald-500/20 text-emerald-400 rounded text-xs font-mono border border-emerald-500/30" data-filter="all" onclick="filterDecisions('all')">All</button>
+                <button class="project-filter-btn px-2 py-1 bg-slate-800 text-slate-400 rounded text-xs font-mono border border-slate-700" data-filter="unresolved" onclick="filterDecisions('unresolved')">Unresolved</button>
+                <button class="project-filter-btn px-2 py-1 bg-slate-800 text-slate-400 rounded text-xs font-mono border border-slate-700" data-filter="resolved" onclick="filterDecisions('resolved')">Resolved</button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg">
+                    <div class="text-xs text-slate-400 mb-1">Decision Nodes</div>
+                    <div class="text-2xl font-bold text-purple-400" id="projectPageNodesCount">0</div>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg">
+                    <div class="text-xs text-slate-400 mb-1">Fog Items</div>
+                    <div class="text-2xl font-bold text-amber-400" id="projectPageFogCount">0</div>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg">
+                    <div class="text-xs text-slate-400 mb-1">Priority Paths</div>
+                    <div class="text-2xl font-bold text-blue-400" id="projectPagePathsCount">0</div>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg">
+                    <div class="text-xs text-slate-400 mb-1">Tickets</div>
+                    <div class="text-2xl font-bold text-emerald-400" id="projectPageTicketsCount">0</div>
+                </div>
+            </div>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><i data-lucide="compass" class="w-5 h-5 text-purple-400"></i> Decision Nodes</h2>
+                    <div id="projectPageNodesContent" class="space-y-2 text-sm">Loading...</div>
                 </div>
                 <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
-                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><i data-lucide="radio" class="w-5 h-5 text-amber-400"></i> Listening Ports</h2>
-                    <div id="listening-ports" class="space-y-2 text-sm">Loading...</div>
+                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><i data-lucide="weather" class="w-5 h-5 text-amber-400"></i> Fog Items</h2>
+                    <div id="projectPageFogItems" class="space-y-2 text-sm">Loading...</div>
                 </div>
             </div>
             <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
-                <div class="flex items-center justify-between mb-4">
-                    <h2 class="text-lg font-semibold flex items-center gap-2"><i data-lucide="x-circle" class="w-5 h-5 text-red-400"></i> Running Processes (sorted by CPU)</h2>
-                    <button onclick="refreshProcesses()" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg transition-colors">Refresh</button>
+                <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><i data-lucide="route" class="w-5 h-5 text-blue-400"></i> Priority Paths</h2>
+                <div id="projectPagePathsContent" class="space-y-2 text-sm">Loading...</div>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><i data-lucide="files" class="w-5 h-5 text-slate-400"></i> Files & Artifacts</h2>
+                    <div id="projectPageFiles" class="space-y-2 text-sm">Loading...</div>
                 </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left text-xs">
-                        <thead><tr class="border-b border-slate-800"><th class="p-2 text-slate-400">PID</th><th class="p-2 text-slate-400">USER</th><th class="p-2 text-slate-400">CPU%</th><th class="p-2 text-slate-400">MEM%</th><th class="p-2 text-slate-400">COMMAND</th><th class="p-2"></th></tr></thead>
-                        <tbody id="processTable"></tbody>
-                    </table>
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><i data-lucide="git-branch" class="w-5 h-5 text-red-400"></i> Git Status & Failure Notices</h2>
+                    <div id="projectPageGitStatus" class="space-y-2 text-sm font-mono">Loading git status and failure reports...</div>
+                </div>
+            </div>
+            <div id="projectPageIdeas"></div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><i data-lucide="ticket" class="w-5 h-5 text-emerald-400"></i> Tickets</h2>
+                    <div id="projectPageTicketsContent" class="space-y-2 text-sm">Loading tickets...</div>
                 </div>
             </div>
         </div>
 
-        <div id="tab-mcp" class="tab-content hidden space-y-6">
+        <div id="tab-ideas" class="tab-content space-y-6">
+            <div class="flex items-center justify-between flex-wrap gap-4">
+                <h2 class="text-lg font-semibold flex items-center gap-2"><i data-lucide="lightbulb" class="w-5 h-5 text-amber-400"></i> Idea Board</h2>
+                <button onclick="showNewIdeaModal()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs rounded-lg transition-colors flex items-center gap-1"><i data-lucide="plus" class="w-3 h-3"></i> New Idea</button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg"><div class="text-sm font-medium text-slate-400 mb-1">Total Ideas</div><span class="text-2xl font-bold text-amber-400" id="idea-total">0</span></div>
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg"><div class="text-sm font-medium text-slate-400 mb-1">Global</div><span class="text-2xl font-bold text-blue-400" id="idea-global">0</span></div>
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg"><div class="text-sm font-medium text-slate-400 mb-1">Project-specific</div><span class="text-2xl font-bold text-purple-400" id="idea-project">0</span></div>
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg"><div class="text-sm font-medium text-slate-400 mb-1">Top Weight</div><span class="text-2xl font-bold text-emerald-400" id="idea-top-weight">0</span></div>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-semibold text-sm flex items-center gap-2"><i data-lucide="list" class="w-4 h-4 text-amber-400"></i> All Ideas <span class="text-xs text-slate-500">(sorted by weight)</span></h3>
+                        <select id="ideaProjectFilter" onchange="loadIdeas()" class="px-2 py-1 bg-slate-800 text-slate-300 rounded text-xs border border-slate-600 focus:outline-none">
+                            <option value="">All Projects</option>
+                        </select>
+                    </div>
+                    <div id="ideaList" class="space-y-2">Loading...</div>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                    <h3 class="font-semibold text-sm mb-4 flex items-center gap-2"><i data-lucide="tag" class="w-4 h-4 text-slate-400"></i> Categories</h3>
+                    <div id="ideaCategories" class="space-y-2">Loading...</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-usage" class="tab-content space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg">
+                    <div class="flex items-center justify-between mb-2"><span class="text-sm font-medium text-slate-400">Today's Cost</span><i data-lucide="dollar-sign" class="w-4 h-4 text-emerald-400"></i></div>
+                    <div class="text-2xl font-bold text-slate-100" id="usage-today">$0.00</div>
+                    <div class="mt-1 text-xs text-slate-500" id="usage-today-tokens">0 tokens</div>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg">
+                    <div class="flex items-center justify-between mb-2"><span class="text-sm font-medium text-slate-400">Daily Limit</span><i data-lucide="target" class="w-4 h-4 text-amber-400"></i></div>
+                    <div class="text-2xl font-bold text-slate-100">$0.50</div>
+                    <div class="mt-2 w-full bg-slate-800 rounded-full h-2"><div class="bg-emerald-500 h-2 rounded-full cost-bar" id="cost-bar" style="width:0%"></div></div>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg">
+                    <div class="flex items-center justify-between mb-2"><span class="text-sm font-medium text-slate-400">Week Estimate</span><i data-lucide="calendar" class="w-4 h-4 text-blue-400"></i></div>
+                    <div class="text-2xl font-bold text-slate-100" id="usage-week">$0.00</div>
+                    <div class="mt-1 text-xs text-slate-500">Projected weekly spend</div>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg">
+                    <div class="flex items-center justify-between mb-2"><span class="text-sm font-medium text-slate-400">Total Entries</span><i data-lucide="file-text" class="w-4 h-4 text-purple-400"></i></div>
+                    <div class="text-2xl font-bold text-slate-100" id="usage-entries">0</div>
+                    <div class="mt-1 text-xs text-slate-500">Log entries analyzed</div>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><i data-lucide="alert-triangle" class="w-5 h-5 text-amber-400"></i> Budget Alerts</h2>
+                    <div id="usage-alerts" class="space-y-2 text-sm">Loading...</div>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><i data-lucide="models" class="w-5 h-5 text-emerald-400"></i> Models Used</h2>
+                    <div id="usage-models" class="space-y-2 text-sm">Loading...</div>
+                </div>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><i data-lucide="bar-chart" class="w-5 h-5 text-blue-400"></i> Cost History</h2>
+                <div class="relative h-[300px]"><canvas id="costChart"></canvas></div>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><i data-lucide="cpu" class="w-5 h-5 text-purple-400"></i> OpenCode Log Analysis</h2>
+                <div id="usage-log-stats" class="space-y-3 text-sm">Loading...</div>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><i data-lucide="history" class="w-5 h-5 text-slate-400"></i> Recent Sessions</h2>
+                <div id="usage-sessions" class="space-y-2 text-sm">Loading...</div>
+            </div>
+        </div>
+
+        <div id="tab-routing" class="tab-content space-y-6">
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                <h2 class="text-xl font-bold mb-4 flex items-center gap-2"><i data-lucide="route" class="w-5 h-5 text-emerald-400"></i> Prompt Routing Engine <span class="text-xs text-slate-500 font-normal">(agnostic: abstracts away underlying model/provider)</span></h2>
+                <div class="edu-layer layer-2 bg-slate-800 rounded-lg p-3 mb-6">
+                    <div class="flex items-center gap-2 mb-1"><span class="text-blue-400 font-mono text-xs">EDUCATIONAL LAYER</span><span class="text-sm font-medium text-slate-200">How Prompt Routing Works</span></div>
+                    <p class="text-xs text-slate-400">Prompt routing classifies your task and selects the optimal model. This is agnostic — the same routing logic works whether you use Ollama, OpenAI, or any other provider. The system adapts to whatever models are available.</p>
+                </div>
+                <div class="space-y-2 mb-6">
+                    <div class="p-3 bg-slate-800 rounded-lg routing-rule">
+                        <div class="flex items-center justify-between mb-1"><span class="font-semibold text-slate-200">Simple</span><span class="px-1.5 py-0.5 bg-emerald-900 text-emerald-300 rounded text-xs">$0.001/request</span></div>
+                        <div class="text-xs text-slate-400">Fast, cheap models for: review, check, validate, test</div>
+                    </div>
+                    <div class="p-3 bg-slate-800 rounded-lg routing-rule">
+                        <div class="flex items-center justify-between mb-1"><span class="font-semibold text-slate-200">Standard</span><span class="px-1.5 py-0.5 bg-blue-900 text-blue-300 rounded text-xs">$0.005/request</span></div>
+                        <div class="text-xs text-slate-400">Balanced models for: write, edit, implement, fix, refactor</div>
+                    </div>
+                    <div class="p-3 bg-slate-800 rounded-lg routing-rule">
+                        <div class="flex items-center justify-between mb-1"><span class="font-semibold text-slate-200">Complex</span><span class="px-1.5 py-0.5 bg-amber-900 text-amber-300 rounded text-xs">$0.01/request</span></div>
+                        <div class="text-xs text-slate-400">Heavy models for: plan, architect, design, analyze, strategy</div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-400 mb-2">Test a prompt:</label>
+                        <textarea id="routingPrompt" rows="3" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-sm font-mono text-slate-300 focus:outline-none focus:border-emerald-500 resize-none" placeholder="e.g. Review this PR for security issues"></textarea>
+                        <button onclick="classifyPrompt()" class="mt-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm transition-colors">Classify & Route</button>
+                    </div>
+                    <div id="routingResult" class="bg-slate-950 rounded-lg p-4 border border-slate-800">
+                        <p class="text-xs text-slate-500">Results will appear here...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><i data-lucide="wand-2" class="w-5 h-5 text-amber-400"></i> Optimize Prompt</h2>
+                    <textarea id="optimizePrompt" rows="3" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-sm font-mono text-slate-300 focus:outline-none focus:border-amber-500 resize-none" placeholder="Paste a prompt to optimize..."></textarea>
+                    <button onclick="optimizeAndShow()" class="mt-2 px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-sm transition-colors flex items-center gap-2">
+                        <i data-lucide="sparkles" class="w-4 h-4"></i> Optimize
+                    </button>
+                    <div id="optimizeResult" class="mt-4 bg-slate-950 rounded-lg p-4 border border-slate-800 text-sm text-slate-300 hidden"></div>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><i data-lucide="sliders" class="w-5 h-5 text-blue-400"></i> Cost Estimator</h2>
+                    <div class="space-y-4">
+                        <div><label class="block text-sm font-medium text-slate-400 mb-1">Model</label>
+                            <select id="cost-model" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
+                                <option value="qwen2.5-coder-16k">Qwen 2.5 Coder 16K</option>
+                                <option value="qwen2.5-coder:1.5b">Qwen 2.5 Coder 1.5B</option>
+                                <option value="ollama/llama3.1">Llama 3.1 8B</option>
+                                <option value="ollama/mistral">Mistral 7B</option>
+                            </select>
+                        </div>
+                        <div><label class="block text-sm font-medium text-slate-400 mb-1">Input Tokens</label><input type="number" id="cost-input" value="1000" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"></div>
+                        <div><label class="block text-sm font-medium text-slate-400 mb-1">Output Tokens</label><input type="number" id="cost-output" value="500" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"></div>
+                        <button onclick="estimateCostShow()" class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm transition-colors">Estimate Cost</button>
+                        <div id="cost-result" class="mt-4 bg-slate-950 rounded-lg p-4 border border-slate-800 text-sm text-slate-300 hidden"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><i data-lucide="recommendation" class="w-5 h-5 text-emerald-400"></i> Model Recommendations <span class="text-xs text-slate-500 font-normal">(based on daily budget)</span></h2>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4" id="modelRecommendations"></div>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+                <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><i data-lucide="shield-check" class="w-5 h-5 text-purple-400"></i> Educational Layer: Cost-Agnostic Design</h2>
+                <div class="edu-layer layer-3 bg-slate-800 rounded-lg p-4">
+                    <p class="text-xs text-slate-400 mb-3">This system is designed to be <span class="text-purple-400 font-semibold">model-agnostic</span>. The routing logic, cost tracking, and optimization strategies work regardless of the underlying LLM provider. When you switch models or providers, the same logic applies — only the cost parameters change.</p>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+                        <div class="p-2 bg-slate-900 rounded text-xs"><span class="text-purple-400">Layer 3 Concept:</span> Abstract provider interface</div>
+                        <div class="p-2 bg-slate-900 rounded text-xs"><span class="text-purple-400">Layer 4 Concept:</span> Cost-aware routing</div>
+                        <div class="p-2 bg-slate-900 rounded text-xs"><span class="text-purple-400">Layer 5 Concept:</span> Full budget lifecycle</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-mcp" class="tab-content space-y-6">
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
                     <div class="flex items-center justify-between mb-4">
@@ -467,80 +857,1158 @@ setInterval(() => {
             </div>
         </div>
 
-        <div id="tab-opencode" class="tab-content hidden space-y-6">
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
+        <div id="tab-opencode" class="tab-content space-y-6">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg lg:col-span-1">
                     <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><i data-lucide="settings" class="w-5 h-5 text-emerald-400"></i> OpenCode Configuration</h2>
                     <div id="opencode-config" class="space-y-3 text-sm">Loading...</div>
                 </div>
-                <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
-                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><i data-lucide="robot" class="w-5 h-5 text-blue-400"></i> Agents & Commands</h2>
-                    <div id="opencode-agents" class="space-y-2 text-sm mb-4">Loading...</div>
-                    <div id="opencode-commands" class="space-y-1 text-xs max-h-40 overflow-y-auto">Loading...</div>
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg lg:col-span-2">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-lg font-semibold flex items-center gap-2"><i data-lucide="robot" class="w-5 h-5 text-blue-400"></i> Agents & Commands Catalog</h2>
+                        <div class="text-xs text-slate-400 font-mono" id="opencode-catalog-stats">Loading stats...</div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <div class="text-xs text-slate-400 mb-2 font-semibold">Registered Agents</div>
+                            <div id="opencode-agents" class="space-y-2 text-sm max-h-60 overflow-y-auto pr-1">Loading...</div>
+                        </div>
+                        <div>
+                            <div class="text-xs text-slate-400 mb-2 font-semibold">Available Commands</div>
+                            <div id="opencode-commands" class="space-y-1.5 text-xs max-h-60 overflow-y-auto pr-1">Loading...</div>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
-                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><i data-lucide="file-text" class="w-5 h-5 text-amber-400"></i> Sessions</h2>
-                    <div id="opencode-sessions" class="space-y-2 text-sm">Loading...</div>
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-lg font-semibold flex items-center gap-2"><i data-lucide="file-text" class="w-5 h-5 text-amber-400"></i> Active Sessions & Memory Vault</h2>
+                        <span class="text-xs text-emerald-400 font-mono px-2 py-0.5 bg-emerald-900/30 rounded">Live Vault</span>
+                    </div>
+                    <div id="opencode-sessions" class="space-y-2 text-sm max-h-72 overflow-y-auto">Loading...</div>
                 </div>
                 <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
                     <div class="flex items-center justify-between mb-4">
-                        <h2 class="text-lg font-semibold flex items-center gap-2"><i data-lucide="scroll" class="w-5 h-5 text-red-400"></i> OpenCode Logs</h2>
-                        <button onclick="refreshLogs()" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg transition-colors">Refresh</button>
+                        <h2 class="text-lg font-semibold flex items-center gap-2"><i data-lucide="scroll" class="w-5 h-5 text-red-400"></i> OpenCode Audit Logs & Traces</h2>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs text-slate-500 font-mono">Auto-sync</span>
+                            <button onclick="refreshLogs()" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg transition-colors flex items-center gap-1"><i data-lucide="refresh-cw" class="w-3 h-3"></i> Refresh</button>
+                        </div>
                     </div>
-                    <div id="opencode-logs" class="space-y-2 max-h-80 overflow-y-auto text-sm">Loading...</div>
+                    <div id="opencode-logs" class="space-y-3 max-h-72 overflow-y-auto text-sm pr-1">Loading...</div>
                 </div>
             </div>
         </div>
-</div>
     </div>
 </main>
 
 <script>
-lucide.createIcons();
-const tabBtns = document.querySelectorAll('.tab-btn');
-const tabContents = document.querySelectorAll('.tab-content');
-tabBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-        tabBtns.forEach(b => { b.classList.remove('active','text-emerald-400','border-emerald-500'); b.classList.add('text-slate-400','border-transparent'); });
-        tabContents.forEach(c => c.classList.add('hidden'));
-        btn.classList.add('active','text-emerald-400','border-emerald-500'); btn.classList.remove('text-slate-400','border-transparent');
-        document.getElementById(btn.dataset.target).classList.remove('hidden');
+// === MODAL SYSTEM ===
+function openModal(id) {
+    fetch('/api/info/' + id)
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('modalTitle').textContent = data.data.title;
+                document.getElementById('modalBody').innerHTML = `
+                    <div class="px-2 py-1 bg-slate-800 rounded text-xs font-mono text-emerald-400 mb-2">Category: ${data.data.category}</div>
+                    <p class="text-slate-300">${data.data.content}</p>
+                    ${data.data.category === 'education' ? '<div class="mt-4 p-3 bg-emerald-900/30 rounded-lg text-xs text-emerald-300"><i data-lucide="book-open" class="w-4 h-4 inline mr-1"></i> This is an educational layer concept. Understanding these layers helps you navigate the agent\'s context depth.</div>' : ''}
+                `;
+                document.getElementById('modalOverlay').classList.remove('hidden');
+                document.getElementById('modalOverlay').classList.add('flex');
+                lucide.createIcons();
+            }
+        });
+}
+function closeModal() {
+    document.getElementById('modalOverlay').classList.add('hidden');
+    document.getElementById('modalOverlay').classList.remove('flex');
+}
+document.getElementById('modalOverlay').addEventListener('click', (e) => { if (e.target === document.getElementById('modalOverlay')) closeModal(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+document.getElementById('btnInfo').addEventListener('click', () => openModal('layer-concept'));
+
+// === MODEL SELECTOR ===
+const modelSelectBtn = document.getElementById('modelSelectBtn');
+const modelDropdown = document.getElementById('modelDropdown');
+modelSelectBtn.addEventListener('click', async () => {
+    if (modelDropdown.classList.contains('hidden')) {
+        modelDropdown.classList.remove('hidden');
+        try {
+            const res = await fetch('/api/models');
+            const data = await res.json();
+            const currentModel = document.getElementById('modelSelectLabel').textContent;
+            if (data.success && data.data.length > 0) {
+                modelDropdown.innerHTML = data.data.map(m => {
+                    const name = m.name || m;
+                    const size = m.size ? (m.size / 1024 / 1024 / 1024).toFixed(1) : '';
+                    return `<button class="model-option w-full text-left px-4 py-2 hover:bg-slate-800 text-sm font-mono text-slate-300 flex items-center justify-between ${name === currentModel ? 'text-emerald-400 bg-slate-800/50' : ''}" data-model="${name}">
+                        <span>${name}</span><span class="text-xs text-slate-500">${size}GB</span>
+                        ${name === currentModel ? '<i data-lucide="check" class="w-3 h-3 text-emerald-400"></i>' : ''}
+                    </button>`;
+                }).join('');
+            } else {
+                modelDropdown.innerHTML = `<div class="px-4 py-2 text-xs text-slate-400">No models detected in Ollama</div>`;
+            }
+            lucide.createIcons();
+            modelDropdown.querySelectorAll('.model-option').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const model = btn.dataset.model;
+                    const res = await fetch('/api/model/switch', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({model}) });
+                    const data = await res.json();
+                    if (data.success) {
+                        document.getElementById('modelSelectLabel').textContent = model;
+                        document.getElementById('modelLabel').textContent = `Model: ${model}`;
+                        modelDropdown.classList.add('hidden');
+                    }
+                });
+            });
+        } catch(e) {}
+    } else { modelDropdown.classList.add('hidden'); }
+});
+document.addEventListener('click', (e) => { if (!modelSelectBtn.contains(e.target) && !modelDropdown.contains(e.target)) modelDropdown.classList.add('hidden'); });
+
+// === TAB NAVIGATION ===
+document.querySelectorAll('.tab-btn').forEach(btn => {
+     btn.addEventListener('click', () => {
+         document.querySelectorAll('.tab-btn').forEach(b => { b.classList.remove('active','text-emerald-400','border-emerald-500'); b.classList.add('text-slate-400','border-transparent'); });
+         document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+         btn.classList.add('active','text-emerald-400','border-emerald-500'); btn.classList.remove('text-slate-400','border-transparent');
+         document.getElementById(btn.dataset.target).classList.add('active');
+         if (btn.dataset.target === 'tab-overview') { refreshSystem(); }
+         if (btn.dataset.target === 'tab-system') { refreshProcesses(); refreshCPUStats(); refreshNetworkStats(); refreshProcessTree(); }
+         if (btn.dataset.target === 'tab-projects') { refreshProjectGraph(); }
+         if (btn.dataset.target === 'tab-ideas') { populateIdeaProjectFilter(); populateIdeaProjectSelect(); loadIdeas(); }
+         if (btn.dataset.target === 'tab-usage') { refreshUsage(); refreshCostChart(); }
+         if (btn.dataset.target === 'tab-routing') { loadRoutingPlan(); loadModelRecommendations(); }
+         if (btn.dataset.target === 'tab-mcp') { refreshMcp(); }
+         if (btn.dataset.target === 'tab-opencode') { refreshOpenCode(); }
+     });
+ });
+
+// === SYSTEM ===
+async function refreshSystem() {
+    try {
+        const [resRes, infoRes, cpuRes] = await Promise.all([
+            fetch('/api/system/resources'),
+            fetch('/api/system/info'),
+            fetch('/api/system/cpu'),
+        ]);
+        const resData = await resRes.json();
+        const infoData = await infoRes.json();
+        const cpuData = await cpuRes.json();
+        if (resData.success) {
+            const { memory, disk } = resData.data;
+            const memGB = parseFloat(memory.usedGB);
+            const totalMem = parseFloat(memory.totalGB);
+            const memPct = memory.usagePct;
+            document.getElementById('metric-mem').textContent = memGB.toFixed(1);
+            document.getElementById('mem-bar').style.width = memPct + '%';
+            const diskTotal = parseFloat(disk.total);
+            const diskUsed = parseFloat(disk.used);
+            const diskPct = parseFloat(disk.pct) || (diskTotal > 0 ? (diskUsed / diskTotal) * 100 : 0);
+            document.getElementById('metric-disk').textContent = diskUsed.toFixed(0);
+            document.getElementById('disk-bar').style.width = Math.min(100, diskPct) + '%';
+            document.getElementById('uptime').textContent = 'Up: ' + Math.floor(infoData.data.uptime / 60) + 'm';
+        }
+        if (infoData.success) {
+            const { temp } = infoData.data;
+            document.getElementById('metric-temp').textContent = temp.temp || 'N/A';
+        }
+        if (cpuData.success) {
+            const { load, cores } = cpuData.data;
+            const loadVal = parseFloat(load['1m'] || '0');
+            document.getElementById('metric-cpu').textContent = Math.min(100, loadVal * 100).toFixed(0);
+        }
+        const detailsDiv = document.getElementById('system-details');
+        try {
+            const sysRes = resData.data;
+            detailsDiv.innerHTML = `
+                <div class="flex items-center justify-between p-2 bg-slate-800 rounded"><span class="text-slate-400">Memory</span><span class="font-mono text-blue-400">${sysRes.memory.usedGB} / ${sysRes.memory.totalGB} GB (${sysRes.memory.usagePct}%)</span></div>
+                <div class="w-full bg-slate-800 rounded-full h-1.5 mt-1"><div class="bg-blue-500 h-1.5 rounded-full" style="width:${sysRes.memory.usagePct}%"></div></div>
+                <div class="flex items-center justify-between p-2 bg-slate-800 rounded mt-2"><span class="text-slate-400">Disk</span><span class="font-mono text-emerald-400">${sysRes.disk.used} / ${sysRes.disk.total} (${sysRes.disk.pct})</span></div>
+                <div class="w-full bg-slate-800 rounded-full h-1.5 mt-1"><div class="bg-emerald-500 h-1.5 rounded-full" style="width:${(sysRes.disk.pct||'0').replace('%','')}%"></div></div>
+                <div class="flex items-center justify-between p-2 bg-slate-800 rounded mt-2"><span class="text-slate-400">CPU Model</span><span class="font-mono text-slate-200 text-xs">${infoData.data.model || 'N/A'}</span></div>
+                <div class="flex items-center justify-between p-2 bg-slate-800 rounded mt-1"><span class="text-slate-400">CPU Cores</span><span class="font-mono text-slate-200">${cpuData.data.cores}</span></div>
+            `;
+        } catch(e) {}
+    } catch(e) {}
+}
+
+async function refreshCPUStats() {
+    try {
+        const res = await fetch('/api/system/cpu');
+        const data = await res.json();
+        if (data.success) {
+            const { load, cores, uptime } = data.data;
+            const l1 = load['1m'] || '0';
+            const l5 = load['5m'] || '0';
+            const l15 = load['15m'] || '0';
+            document.getElementById('cpu-stats').innerHTML = `<div class="flex items-center justify-between"><span class="text-slate-400">CPU Load (1m)</span><span class="font-mono text-emerald-400">${l1}</span></div><div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-emerald-500 h-2 rounded-full" style="width:${Math.min(parseFloat(l1) * 50, 100)}%"></div></div><div class="flex items-center justify-between mt-2"><span class="text-slate-400">CPU Load (5m)</span><span class="font-mono text-amber-400">${l5}</span></div><div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-amber-500 h-2 rounded-full" style="width:${Math.min(parseFloat(l5) * 50, 100)}%"></div></div><div class="flex items-center justify-between mt-2"><span class="text-slate-400">CPU Load (15m)</span><span class="font-mono text-blue-400">${l15}</span></div><div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-blue-500 h-2 rounded-full" style="width:${Math.min(parseFloat(l15) * 50, 100)}%"></div></div><div class="flex items-center justify-between mt-2"><span class="text-slate-400">Cores</span><span class="font-mono text-slate-200">${cores}</span></div><div class="flex items-center justify-between mt-2"><span class="text-slate-400">Uptime</span><span class="font-mono text-slate-200">${Math.floor(uptime / 60)}m</span></div>`;
+        }
+    } catch(e) {}
+}
+
+async function refreshProcesses() {
+    try {
+        const res = await fetch('api/processes');
+        const data = await res.json();
+        if (!data.success) return;
+        const { processes, ports, resources } = data.data;
+        const resDiv = document.getElementById('system-resources');
+        if (resources && resources.memory) {
+            resDiv.innerHTML = `<div class="flex items-center justify-between"><span class="text-slate-400">Memory</span><span class="font-mono">${resources.memory.usedGB} / ${resources.memory.totalGB} GB (${resources.memory.usagePct}%)</span></div><div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-emerald-500 h-2 rounded-full" style="width:${resources.memory.usagePct}%"></div></div><div class="flex items-center justify-between mt-2"><span class="text-slate-400">Disk</span><span class="font-mono">${resources.disk.used || 'N/A'} / ${resources.disk.total || 'N/A'}</span></div><div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-blue-500 h-2 rounded-full" style="width:${parseFloat(resources.disk.pct || '0').toFixed(0)}%"></div></div>`;
+        }
+        const portsDiv = document.getElementById('listening-ports');
+        portsDiv.innerHTML = ports.map(p => `<div class="flex items-center justify-between p-2 bg-slate-800 rounded"><span class="font-mono text-slate-300">${p.port}</span><span class="text-xs text-slate-400">${p.process} (PID: ${p.pid})</span></div>`).join('') || 'No listening ports';
+        const tableBody = document.getElementById('processTable');
+        tableBody.innerHTML = processes.slice(0, 30).map(p => `<tr class="border-b border-slate-800 hover:bg-slate-800/50"><td class="p-2 font-mono text-slate-300">${p.pid}</td><td class="p-2 text-slate-400">${p.user}</td><td class="p-2 ${parseFloat(p.cpu) > 50 ? 'text-red-400 font-bold' : 'text-slate-300'}">${p.cpu}%</td><td class="p-2 text-slate-300">${p.mem}%</td><td class="p-2 font-mono text-xs text-slate-300 max-w-md truncate" title="${p.command}">${p.command.substring(0, 60)}</td><td class="p-2"><button onclick="killProc('${p.pid}')" class="px-2 py-0.5 bg-red-900/50 hover:bg-red-800 text-red-300 rounded text-xs">Kill</button></td></tr>`).join('');
+    } catch(e) {}
+}
+async function killProc(pid) {
+    if (!confirm('Kill process ' + pid + '?')) return;
+    try { const res = await fetch('api/processes/kill', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({pid}) }); const data = await res.json(); if (data.success) refreshProcesses(); } catch(e) {}
+}
+async function refreshNetworkStats() {
+    try {
+        const res = await fetch('/api/system/network');
+        const data = await res.json();
+        if (data.success) {
+            const { interfaces, disks } = data.data;
+            let html = '';
+            if (interfaces.length > 0) {
+                html = interfaces.map(i => `<div class="flex items-center justify-between p-2 bg-slate-800 rounded"><span class="font-mono text-slate-300">${i.interface}</span><span class="text-xs text-slate-400">${(i.rxBytes / 1024 / 1024).toFixed(1)} MB rx / ${(i.txBytes / 1024 / 1024).toFixed(1)} MB tx</span></div>`).join('');
+            }
+            if (disks && disks.length > 0) {
+                html += '<div class="mt-2 text-xs text-slate-500 font-semibold">Disks:</div>';
+                html += disks.map(d => `<div class="flex items-center justify-between p-2 bg-slate-800 rounded"><span class="font-mono text-slate-300 text-xs">${d.mount || d.filesystem}</span><span class="text-xs text-slate-400">${d.used} / ${d.size} (${d.pct})</span></div>`).join('');
+            }
+            document.getElementById('network-stats').innerHTML = html || 'No network interfaces found';
+        }
+    } catch(e) {}
+}
+async function refreshProcessTree() {
+    try { const res = await fetch('/api/system/process-tree'); const data = await res.json(); if (data.success) document.getElementById('processTree').textContent = data.data.substring(0, 5000); } catch(e) {}
+}
+
+ // === PROJECTS ===
+let projectAutoRefreshInterval = null;
+let currentFilter = 'all';
+let currentProjectPage = null;
+
+async function refreshProjectGraph() {
+    try {
+        const res = await fetch('/api/projects/graph');
+        const data = await res.json();
+        if (data.success) {
+            const graph = data.data;
+            applyFilter('all');
+            document.getElementById('total-projects').textContent = graph.summary.totalProjects;
+            document.getElementById('active-projects').textContent = graph.summary.activeProjects;
+            document.getElementById('blocked-projects').textContent = graph.summary.blockedProjects;
+            const detailsDiv = document.getElementById('projectDetails');
+            const filteredProjects = currentFilter === 'all' ? graph.projects :
+                currentFilter === 'active' ? graph.projects.filter(p => p.progress > 50) :
+                graph.projects.filter(p => p.blockages.length > 0);
+            detailsDiv.innerHTML = filteredProjects.map(p => {
+                const artifactBadges = Object.entries(p.artifacts).map(([key, val]) =>
+                    `<span class="px-1.5 py-0.5 rounded text-xs ${val ? 'bg-emerald-900 text-emerald-300' : 'bg-red-900 text-red-400'}">${key}</span>`
+                ).join('');
+                const ticketBadge = p.ticketCount > 0 ? `<span class="px-1.5 py-0.5 bg-blue-900 text-blue-300 rounded text-xs"><i data-lucide="ticket" class="w-3 h-3 inline"></i> ${p.ticketCount}</span>` : '';
+                const wfInfo = p.wayfinder ? `<span class="px-1.5 py-0.5 bg-purple-900/50 text-purple-300 rounded text-xs">${p.wayfinder.decisionNodes} nodes | ${p.wayfinder.fogItems} fog</span>` : '';
+                return `<div class="project-node p-3 bg-slate-800 rounded-lg border border-slate-700 cursor-pointer" onclick="showProjectPage('${p.name}')">
+                    <div class="flex items-center justify-between mb-2"><span class="font-semibold text-slate-200">${p.name}</span>
+                    <span class="px-1.5 py-0.5 ${p.progress > 50 ? 'bg-emerald-900 text-emerald-300' : 'bg-amber-900 text-amber-300'} rounded text-xs">${p.progress}%</span></div>
+                    <div class="w-full bg-slate-900 rounded-full h-1.5 mb-2"><div class="${p.progress > 50 ? 'bg-emerald-500' : 'bg-amber-500'} h-1.5 rounded-full" style="width:${p.progress}%"></div></div>
+                    <div class="flex items-center gap-1 flex-wrap mb-2">${artifactBadges} ${ticketBadge} ${wfInfo}</div>
+                    ${p.blockages.length > 0 ? `<div class="flex items-center gap-1 text-xs text-red-400"><i data-lucide="alert-circle" class="w-3 h-3"></i> ${p.blockages.map(b => b.replace('Missing ','').replace(' - no decision framework','').replace(' - no domain context','').replace(' - no task tracking','')).join(', ')}</div>` :
+                    `<div class="flex items-center gap-1 text-xs text-emerald-400"><i data-lucide="check-circle" class="w-3 h-3"></i> All artifacts present</div>`}
+                </div>`;
+            }).join('') || '<div class="text-slate-500 text-sm">No projects match this filter</div>';
+            lucide.createIcons();
+            const depsDiv = document.getElementById('projectDeps');
+            depsDiv.innerHTML = graph.dependencies.map(d => `<div class="p-3 bg-slate-800 rounded-lg"><div class="font-semibold text-slate-200 mb-2">${d.project}</div><div class="flex flex-wrap gap-1">${d.dependencies.slice(0, 15).map(dep => `<span class="px-1.5 py-0.5 bg-slate-700 rounded text-xs text-slate-400">${dep}</span>`).join('')}${d.dependencies.length > 15 ? `<span class="px-1.5 py-0.5 bg-slate-700 rounded text-xs text-slate-500">+${d.dependencies.length - 15} more</span>` : ''}</div></div>`).join('') || '<div class="text-slate-500 text-sm">No dependencies found</div>';
+            const artifactDiv = document.getElementById('artifactStatus');
+            const allArtifacts = ['CONTEXT.md', 'WAYFINDER.md', 'TODO.md', 'AGENT.md'];
+            artifactDiv.innerHTML = `<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">${graph.projects.map(p => {
+                const present = Object.entries(p.artifacts).filter(([k,v]) => v).map(([k]) => k);
+                const missing = allArtifacts.filter(a => !p.artifacts[a]);
+                return `<div class="p-3 bg-slate-800 rounded-lg border border-slate-700"><div class="font-semibold text-slate-200 mb-2">${p.name}</div><div class="flex flex-wrap gap-1 mb-2">${present.map(a => `<span class="px-1.5 py-0.5 bg-emerald-900/50 text-emerald-400 rounded text-xs">${a}</span>`).join('')}</div>${missing.length > 0 ? `<div class="text-xs text-red-400">Missing: ${missing.join(', ')}</div>` : '<div class="text-xs text-emerald-400">All artifacts present</div>'}</div>`;
+            }).join('')}</div>`;
+drawProjectMap(graph);
+         }
+     } catch(e) {}
+     populateIdeaProjectFilter();
+     populateIdeaProjectSelect();
+     loadIdeas();
+ }
+
+ function applyFilter(filter) {
+    currentFilter = filter;
+    document.querySelectorAll('.project-filter-btn').forEach(btn => {
+        btn.classList.remove('active', 'bg-emerald-500/20', 'text-emerald-400', 'border-emerald-500/30');
+        btn.classList.add('bg-slate-800', 'text-slate-400', 'border-slate-700');
+        if (btn.dataset.filter === filter) {
+            btn.classList.add('active', 'bg-emerald-500/20', 'text-emerald-400', 'border-emerald-500/30');
+            btn.classList.remove('bg-slate-800', 'text-slate-400', 'border-slate-700');
+        }
     });
+    refreshProjectGraph();
+}
+
+function showProjectPage(name) {
+     currentProjectPage = name;
+     history.pushState({ project: name }, '', '#project/' + encodeURIComponent(name));
+     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+     document.getElementById('project-page').classList.add('active');
+     document.getElementById('projectPageTitle').textContent = name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+     document.getElementById('projectPageTitle').innerHTML += ' <span class="text-sm font-normal text-slate-400">— Exploring</span>';
+
+     const nodesDiv = document.getElementById('projectPageNodesContent');
+     const fogDiv = document.getElementById('projectPageFogItems');
+     const pathsDiv = document.getElementById('projectPagePathsContent');
+     const ticketsDiv = document.getElementById('projectPageTicketsContent');
+     const filesDiv = document.getElementById('projectPageFiles');
+     const nextActionEl = document.getElementById('projectPageNextAction');
+     const nextActionText = document.getElementById('projectPageNextActionText');
+
+     nodesDiv.innerHTML = '<div class="text-slate-500 text-sm">Loading decision nodes...</div>';
+     fogDiv.innerHTML = '<div class="text-slate-500 text-sm">Loading fog items...</div>';
+     pathsDiv.innerHTML = '<div class="text-slate-500 text-sm">Loading priority paths...</div>';
+     ticketsDiv.innerHTML = '<div class="text-slate-500 text-sm">Loading tickets...</div>';
+     filesDiv.innerHTML = '<div class="text-slate-500 text-sm">Loading files...</div>';
+     nextActionEl.classList.add('hidden');
+
+     Promise.all([
+         fetch('/api/projects/' + encodeURIComponent(name)).then(r => r.json()),
+         fetch('/api/projects/' + encodeURIComponent(name) + '/tickets').then(r => r.json()),
+     ]).then(([detailRes, ticketRes]) => {
+         const p = detailRes.success ? detailRes.data : null;
+         const tickets = ticketRes.success ? ticketRes.data : { issues: [], pullRequests: [] };
+         const wf = p && p.wayfinder ? p.wayfinder : null;
+
+         if (p) {
+             document.getElementById('projectPageProgress').textContent = p.progress + '%';
+             document.getElementById('projectPageStatus').textContent = p.blockages.length === 0 ? 'Healthy' : p.blockages.length + ' blocked';
+             document.getElementById('projectPageProgress').className = 'px-2 py-1 bg-emerald-500/20 text-emerald-400 rounded text-xs font-mono';
+             document.getElementById('projectPageStatus').className = 'px-2 py-1 ' + (p.blockages.length === 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400') + ' rounded text-xs font-mono';
+             document.getElementById('projectPageNodesCount').textContent = wf ? wf.decisionNodes.length : 0;
+             document.getElementById('projectPageFogCount').textContent = wf ? wf.fogItems.length : 0;
+             document.getElementById('projectPagePathsCount').textContent = wf ? wf.priorityPaths.length : 0;
+             const totalTickets = (tickets.issues || []).length + (tickets.pullRequests || []).length;
+             document.getElementById('projectPageTicketsCount').textContent = totalTickets;
+             if (p.nextAction) {
+                 nextActionText.textContent = `Next action: ${p.nextAction}`;
+                 nextActionEl.classList.remove('hidden');
+             }
+         }
+
+
+
+         if (wf && wf.decisionNodes && wf.decisionNodes.length > 0) {
+            nodesDiv.innerHTML = wf.decisionNodes.map((n, i) => {
+                const statusClass = (n.Status && n.Status.includes('Resolved')) ? 'text-emerald-400 bg-emerald-900/30' :
+                    (n.Status && n.Status.includes('Active')) ? 'text-emerald-400 bg-emerald-900/30' :
+                    (n.Status && n.Status.includes('Open')) ? 'text-amber-400 bg-amber-900/30' :
+                    (n.Status && n.Status.includes('Block')) ? 'text-red-400 bg-red-900/30' :
+                    'text-slate-400 bg-slate-700/50';
+                const priorityClass = (n.Priority && n.Priority.includes('High')) ? 'text-red-400' : (n.Priority && n.Priority.includes('Medium')) ? 'text-amber-400' : 'text-slate-400';
+                const hasOverride = n.hasOverride ? '<span class="text-xs text-purple-400 shrink-0" title="User override"><i data-lucide="pencil" class="w-3 h-3"></i></span>' : '';
+                const filterMatch = currentDecisionFilter === 'unresolved' && (n.Status === 'Resolved') ? 'hidden' : '';
+                const filterMatch2 = currentDecisionFilter === 'resolved' && (n.Status !== 'Resolved') ? 'hidden' : '';
+                return `<div class="p-3 bg-slate-800 rounded-lg border border-slate-700 decision-card" data-status="${n.Status || ''}" ${filterMatch} ${filterMatch2}>
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="font-semibold text-slate-200 text-sm">${n.title} ${hasOverride}</span>
+                        <div class="flex items-center gap-1">
+                            <button onclick="showExplain('${encodeURIComponent(name)}', ${i})" class="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-slate-200 transition-colors" title="Explain"><i data-lucide="info" class="w-3 h-3"></i></button>
+                            <span class="px-1.5 py-0.5 ${priorityClass} rounded text-xs">${n.Priority || 'Unknown'}</span>
+                            <select class="px-1.5 py-0.5 bg-slate-700 text-slate-300 rounded text-xs border border-slate-600 focus:outline-none focus:border-emerald-500" onchange="updateDecision('${encodeURIComponent(name)}', ${i}, this.value)">
+                                <option value="Active" ${n.Status === 'Active' ? 'selected' : ''}>Active</option>
+                                <option value="In Progress" ${n.Status === 'In Progress' ? 'selected' : ''}>In Progress</option>
+                                <option value="Resolved" ${n.Status === 'Resolved' ? 'selected' : ''}>Resolved</option>
+                                <option value="Blocked" ${n.Status === 'Blocked' ? 'selected' : ''}>Blocked</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="text-xs ${statusClass} px-2 py-0.5 rounded inline-block mb-2">${n.Status || '—'}</div>
+                    ${n.Options ? `<div class="text-xs text-slate-400 mb-1">Options: ${n.Options}</div>` : ''}
+                    ${n.Blocker ? `<div class="text-xs text-red-400 flex items-center gap-1 mt-1"><i data-lucide="alert-triangle" class="w-3 h-3"></i> ${n.Blocker}</div>` : ''}
+                    ${n.Resolution || n.Note ? `<div class="text-xs text-emerald-400 flex items-center gap-1 mt-1"><i data-lucide="check" class="w-3 h-3"></i> ${n.Resolution || n.Note}</div>` : ''}
+                    <div class="mt-2 flex gap-2">
+                        <input type="text" class="flex-1 text-xs bg-slate-900 border border-slate-600 rounded px-2 py-1 text-slate-300 placeholder-slate-500 focus:outline-none focus:border-purple-500" placeholder="Add a note..." data-note-input="${i}" />
+                        <button onclick="addDecisionNote('${encodeURIComponent(name)}', ${i})" class="px-2 py-1 bg-purple-600 hover:bg-purple-700 text-white text-xs rounded transition-colors">Save</button>
+                    </div>
+                </div>`;
+            }).join('');
+            lucide.createIcons();
+        } else if (wf) {
+            nodesDiv.innerHTML = '<div class="text-slate-500 text-sm">No decision nodes found</div>';
+        }
+
+        if (wf && wf.fogItems && wf.fogItems.length > 0) {
+            fogDiv.innerHTML = wf.fogItems.map((item, i) => {
+                const text = typeof item === 'string' ? item : (item.text || item.message || JSON.stringify(item));
+                const fogState = (wf.fogStates && wf.fogStates[String(i)]) || {};
+                return `<div class="p-2 bg-amber-900/20 border border-amber-800/50 rounded text-xs text-amber-300">
+                    <div class="flex items-start gap-2">
+                        <span class="font-mono text-amber-500 shrink-0">${i + 1}.</span>
+                        <div class="flex-1">
+                            <div>${text}</div>
+                            <div class="flex items-center gap-2 mt-1">
+                                <select class="px-1.5 py-0.5 bg-slate-800 text-slate-300 rounded text-xs border border-slate-600 focus:outline-none" onchange="updateFog('${encodeURIComponent(name)}', ${i}, this.value)">
+                                    <option value="open" ${fogState.Status === 'open' ? 'selected' : ''}>Open</option>
+                                    <option value="investigating" ${fogState.Status === 'investigating' ? 'selected' : ''}>Investigating</option>
+                                    <option value="resolved" ${fogState.Status === 'resolved' ? 'selected' : ''}>Resolved</option>
+                                </select>
+                                <input type="text" class="flex-1 text-xs bg-slate-800 border border-slate-600 rounded px-1 py-0.5 text-slate-300 placeholder-slate-500 focus:outline-none" placeholder="Note..." data-fog-note="${i}" value="${fogState.Note || ''}" />
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+            lucide.createIcons();
+        } else if (wf) {
+            fogDiv.innerHTML = '<div class="text-emerald-400 text-sm"><i data-lucide="check-circle" class="w-4 h-4 inline"></i> No fog items — all clear!</div>';
+        }
+
+        if (wf && wf.priorityPaths && wf.priorityPaths.length > 0) {
+            pathsDiv.innerHTML = wf.priorityPaths.map((path, i) => {
+                const text = typeof path === 'string' ? path : JSON.stringify(path);
+                return `<div class="p-2 bg-blue-900/20 border border-blue-800/50 rounded text-xs text-blue-300 flex items-start gap-2"><span class="font-mono text-blue-500 shrink-0">${i + 1}.</span><span>${text}</span></div>`;
+            }).join('');
+        } else if (wf) {
+            pathsDiv.innerHTML = '<div class="text-slate-500 text-sm">No priority paths defined</div>';
+        }
+
+        if (tickets) {
+            const allTickets = [...(tickets.issues || []), ...(tickets.pullRequests || [])];
+            if (allTickets.length > 0) {
+                ticketsDiv.innerHTML = allTickets.map(t => {
+                    const isPR = t.type === 'pullRequest' || t.pullRequest;
+                    return `<div class="p-2 bg-slate-800 rounded-lg border border-slate-700">
+                        <div class="flex items-center justify-between"><span class="font-mono text-xs ${isPR ? 'text-blue-400' : 'text-emerald-400'}">#${t.number || t.pr_number || '?'}</span><span class="px-1.5 py-0.5 ${t.state === 'open' ? 'bg-emerald-900 text-emerald-300' : 'bg-slate-700 text-slate-400'} rounded text-xs">${t.state}</span></div>
+                        <div class="text-xs text-slate-300 mt-1">${t.title}</div>
+                    </div>`;
+                }).join('');
+            } else {
+                ticketsDiv.innerHTML = '<div class="text-slate-500 text-sm"><i data-lucide="git-pull-request" class="w-4 h-4 inline"></i> No open tickets in this project</div>';
+            }
+        }
+
+        if (p && p.topLevelFiles && p.topLevelFiles.length > 0) {
+            const artifactEntries = Object.entries(p.artifactsDetail || {});
+            filesDiv.innerHTML = `
+                <div class="text-xs text-slate-400 font-semibold mb-2">Artifacts</div>
+                ${artifactEntries.map(([key, val]) => {
+                    if (val.exists) {
+                        return `<div class="flex items-center justify-between p-2 bg-emerald-900/20 rounded text-xs"><div class="flex items-center gap-2"><i data-lucide="file-text" class="w-3 h-3 text-emerald-400"></i><span class="font-mono text-emerald-300">${key}</span></div><span class="text-slate-500">${val.lines} lines / ${(val.size/1024).toFixed(0)}KB</span></div>`;
+                    }
+                    return `<div class="flex items-center justify-between p-2 bg-red-900/20 rounded text-xs"><div class="flex items-center gap-2"><i data-lucide="file-x" class="w-3 h-3 text-red-400"></i><span class="font-mono text-red-400">${key}</span></div><span class="text-red-500 text-xs">Missing</span></div>`;
+                }).join('')}
+                <div class="text-xs text-slate-400 font-semibold mt-3 mb-2">Top-Level Files</div>
+                <div class="flex flex-wrap gap-1">${p.topLevelFiles.slice(0, 15).map(f => {
+                    const isArtifact = ['CONTEXT.md','WAYFINDER.md','TODO.md','AGENT.md'].includes(f);
+                    return `<span class="px-1.5 py-0.5 ${isArtifact ? 'bg-emerald-900/30 text-emerald-400' : 'bg-slate-800 text-slate-400'} rounded text-xs font-mono">${f}</span>`;
+                }).join('')}</div>
+                ${p.packageJson ? `<div class="text-xs text-slate-400 font-semibold mt-3 mb-1">package.json</div><div class="text-xs text-slate-300">${p.packageJson.name} v${p.packageJson.version} — ${p.packageJson.dependenciesCount} deps, ${p.packageJson.devDependenciesCount} devDeps</div>` : ''}
+            `;
+        }
+        if (p && p.git) {
+            const gitDiv = document.getElementById('projectPageGitStatus');
+            const statusLines = p.git.status ? p.git.status.split('\n').filter(l => l.trim().length > 0) : [];
+            gitDiv.innerHTML = `
+                <div class="flex items-center justify-between mb-2"><span class="text-slate-400">Branch:</span><span class="text-emerald-400">${p.git.branch}</span></div>
+                <div class="flex items-center justify-between mb-2"><span class="text-slate-400">Last Commit:</span><span class="text-slate-200">${p.git.lastCommit}</span></div>
+                <div class="text-xs text-slate-400 font-semibold mt-3 mb-1">Git Status / Failure Notices (${statusLines.length})</div>
+                <div class="bg-slate-900 p-2.5 rounded border border-slate-800 max-h-36 overflow-y-auto text-xs space-y-1">
+                    ${statusLines.length > 0 ? statusLines.map(l => `<div class="${l.startsWith('!') || l.startsWith('?') || l.includes('conflict') ? 'text-red-400' : 'text-amber-300'} font-mono">${l}</div>`).join('') : '<div class="text-emerald-400">Working tree clean — no failure notices</div>'}
+                </div>
+            `;
+        }
+        lucide.createIcons();
+    }).catch(() => {
+        nodesDiv.innerHTML = '<div class="text-red-400 text-sm">Failed to load</div>';
+        fogDiv.innerHTML = '<div class="text-red-400 text-sm">Failed to load</div>';
+        pathsDiv.innerHTML = '<div class="text-red-400 text-sm">Failed to load</div>';
+        ticketsDiv.innerHTML = '<div class="text-red-400 text-sm">Failed to load</div>';
+        filesDiv.innerHTML = '<div class="text-red-400 text-sm">Failed to load</div>';
+    });
+
+     // Load project-specific ideas
+     if (p && p.name) {
+         fetch('/api/ideas?project=' + encodeURIComponent(p.name)).then(r => r.json()).then(data => {
+             if (data.success && data.data.length > 0) {
+                 const ideasSection = document.getElementById('projectPageIdeas');
+                 if (ideasSection) {
+                     ideasSection.innerHTML = `<div class="mt-4 pt-4 border-t border-slate-700"><h3 class="text-sm font-semibold text-amber-400 mb-2 flex items-center gap-1"><i data-lucide="lightbulb" class="w-4 h-4"></i> Ideas (${data.data.length})</h3>${data.data.map(idea => `<div class="text-xs text-slate-300 bg-slate-800/50 p-2 rounded mb-1">${idea.content} <span class="text-slate-500 ml-1">weight:${idea.weight} ${idea.category || ''}</span></div>`).join('')}</div>`;
+                     lucide.createIcons();
+                 }
+             }
+         }).catch(() => {});
+     }
+ }
+
+let currentDecisionFilter = 'all';
+
+function showExplain(name, index) {
+    document.getElementById('modalTitle').textContent = 'Decision Explained';
+    document.getElementById('modalBody').innerHTML = '<div class="text-slate-400 text-sm">Loading explanation...</div>';
+    document.getElementById('modalOverlay').classList.remove('hidden');
+    document.getElementById('modalOverlay').classList.add('flex');
+    fetch('/api/projects/' + encodeURIComponent(name) + '/decision/' + index + '/explain')
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) return;
+            const e = data.data;
+            let html = '';
+            if (e.context) html += `<div class="mb-3"><div class="text-xs text-slate-400 font-semibold mb-1">Context</div><div class="text-xs text-slate-300 bg-slate-800 p-2 rounded">${e.context}</div></div>`;
+            if (e.coreTerms) html += `<div class="mb-3"><div class="text-xs text-slate-400 font-semibold mb-1">Core Terms</div><div class="text-xs text-slate-300 bg-slate-800 p-2 rounded">${e.coreTerms}</div></div>`;
+            if (e.openQuestions && e.openQuestions.length > 0) html += `<div class="mb-3"><div class="text-xs text-slate-400 font-semibold mb-1">Open Questions</div>${e.openQuestions.map(q => `<div class="text-xs text-amber-300 bg-amber-900/20 p-1 rounded mb-1">${q}</div>`).join('')}</div>`;
+            if (e.recommended) html += `<div class="mb-3 p-3 bg-emerald-900/20 border border-emerald-800/50 rounded"><div class="text-xs text-emerald-400 font-semibold mb-1">Recommended Resolution</div><div class="text-xs text-emerald-300">${e.recommended.Resolution}</div><div class="text-xs text-emerald-500 mt-1">${e.recommended.Note}</div></div>`;
+            if (e.relatedFogItems && e.relatedFogItems.length > 0) html += `<div class="mb-3"><div class="text-xs text-slate-400 font-semibold mb-1">Related Fog Items</div>${e.relatedFogItems.map(f => `<div class="text-xs text-amber-300 bg-amber-900/20 p-1 rounded mb-1">${f}</div>`).join('')}</div>`;
+            html += `<button onclick="applyRecommendation('${encodeURIComponent(name)}', ${index})" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs rounded-lg transition-colors">Apply Recommended Resolution</button>`;
+            document.getElementById('modalBody').innerHTML = html;
+            lucide.createIcons();
+        })
+        .catch(() => { document.getElementById('modalBody').innerHTML = '<div class="text-red-400 text-sm">Failed to load explanation</div>'; });
+}
+
+function applyRecommendation(name, index) {
+    fetch('/api/projects/' + encodeURIComponent(name) + '/decision/' + index, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ Status: 'Resolved', Note: 'Applied recommended resolution' }),
+    }).then(r => r.json()).then(() => { closeModal(); showProjectPage(name); }).catch(() => {});
+}
+
+function filterDecisions(filter) {
+    currentDecisionFilter = filter;
+    document.querySelectorAll('.decision-card').forEach(card => {
+        const status = card.dataset.status || '';
+        if (filter === 'unresolved' && status === 'Resolved') card.style.display = 'none';
+        else if (filter === 'resolved' && status !== 'Resolved') card.style.display = 'none';
+        else card.style.display = '';
+    });
+    document.querySelectorAll('#projectPageFilters .project-filter-btn').forEach(btn => {
+        btn.classList.remove('active', 'bg-emerald-500/20', 'text-emerald-400', 'border-emerald-500/30');
+        btn.classList.add('bg-slate-800', 'text-slate-400', 'border-slate-700');
+        if (btn.dataset.filter === filter) {
+            btn.classList.add('active', 'bg-emerald-500/20', 'text-emerald-400', 'border-emerald-500/30');
+            btn.classList.remove('bg-slate-800', 'text-slate-400', 'border-slate-700');
+        }
+    });
+}
+
+function updateFog(name, index, status) {
+    const note = document.querySelector(`[data-fog-note="${index}"]`);
+    const noteVal = note ? note.value : null;
+    fetch('/api/projects/' + encodeURIComponent(name) + '/fog/' + index, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ Status: status, Note: noteVal }),
+    }).then(r => r.json()).then(() => { showProjectPage(name); }).catch(() => {});
+}
+
+function goBackToProjects() {
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    document.getElementById('project-page').classList.remove('active');
+    document.getElementById('tab-projects').classList.add('active');
+    currentProjectPage = null;
+    history.pushState({ tab: 'tab-projects' }, '', window.location.pathname);
+    refreshProjectGraph();
+}
+function showNewProjectModal() {
+    document.getElementById('newProjectName').value = '';
+    document.getElementById('newProjectDesc').value = '';
+    document.getElementById('newProjectFile').value = '';
+    document.getElementById('newProjectFilePreview').textContent = '';
+    lucide.createIcons();
+}
+
+function closeNewProjectModal() {
+     document.getElementById('newProjectModal').style.display = 'none';
+ }
+
+ document.getElementById('newProjectFile').addEventListener('change', (e) => {
+     const file = e.target.files[0];
+     const preview = document.getElementById('newProjectFilePreview');
+     if (!file) { preview.textContent = ''; return; }
+     preview.textContent = `Selected: ${file.name} (${(file.size / 1024).toFixed(0)}KB) — title and description will be extracted on submit`;
+ });
+
+ function createProject() {
+     const name = document.getElementById('newProjectName').value.trim();
+     const desc = document.getElementById('newProjectDesc').value.trim();
+     const file = document.getElementById('newProjectFile').files[0];
+     if (!name) return alert('Project name is required');
+     if (file) {
+         const reader = new FileReader();
+         reader.onload = (e) => {
+             fetch('/api/projects/from-html', {
+                 method: 'POST',
+                 headers: { 'Content-Type': 'application/json' },
+                 body: JSON.stringify({ name, description: desc, htmlContent: e.target.result }),
+             }).then(r => r.json()).then(data => {
+                 if (data.success) { closeNewProjectModal(); refreshProjectGraph(); }
+                 else alert('Failed: ' + data.error);
+             }).catch(() => alert('Failed to create project'));
+         };
+         reader.readAsText(file);
+     } else {
+         fetch('/api/projects/init', {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({ name, description: desc }),
+         }).then(r => r.json()).then(data => {
+             if (data.success) { closeNewProjectModal(); refreshProjectGraph(); }
+             else alert('Failed: ' + data.error);
+         }).catch(() => alert('Failed to create project'));
+      }
+  }
+
+function closeModal() {
+    document.getElementById('modalOverlay').classList.add('hidden');
+    document.getElementById('modalOverlay').classList.remove('flex');
+}
+
+window.addEventListener('popstate', (e) => {
+     if (e.state && e.state.project) {
+         showProjectPage(e.state.project);
+     } else {
+     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+     document.getElementById('tab-projects').classList.add('active');
+     document.getElementById('project-page').classList.remove('active');
+         currentProjectPage = null;
+         if (e.state && e.state.tab) {
+             const btn = document.querySelector(`.tab-btn[data-target="${e.state.tab}"]`);
+             if (btn) btn.click();
+         }
+     }
+ });
+
+ function showNewIdeaModal() {
+     document.getElementById('ideaModal').style.display = 'flex';
+     document.getElementById('ideaContent').value = '';
+     document.getElementById('ideaWeight').value = '0';
+     document.getElementById('ideaCategory').value = 'general';
+     document.getElementById('ideaProject').value = '';
+     lucide.createIcons();
+ }
+
+ function closeIdeaModal() {
+     document.getElementById('ideaModal').style.display = 'none';
+ }
+
+ async function saveIdea() {
+     const content = document.getElementById('ideaContent').value.trim();
+     const weight = parseFloat(document.getElementById('ideaWeight').value) || 0;
+     const category = document.getElementById('ideaCategory').value;
+     const projectName = document.getElementById('ideaProject').value || null;
+     if (!content) return alert('Content is required');
+     try {
+         const res = await fetch('/api/ideas', {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({ project_name: projectName, content, weight, category }),
+         });
+         const data = await res.json();
+         if (data.success) { closeIdeaModal(); loadIdeas(); }
+         else alert('Failed: ' + data.error);
+     } catch (e) { alert('Failed to save idea'); }
+ }
+
+ async function loadIdeas() {
+     const projectFilter = document.getElementById('ideaProjectFilter') ? document.getElementById('ideaProjectFilter').value : '';
+     try {
+         const url = projectFilter ? '/api/ideas?project=' + encodeURIComponent(projectFilter) : '/api/ideas';
+         const res = await fetch(url);
+         const data = await res.json();
+         if (!data.success) return;
+         const ideas = data.data;
+         document.getElementById('idea-total').textContent = ideas.length;
+         document.getElementById('idea-global').textContent = ideas.filter(i => !i.project_name).length;
+         document.getElementById('idea-project').textContent = ideas.filter(i => i.project_name).length;
+         document.getElementById('idea-top-weight').textContent = ideas.length > 0 ? Math.max(...ideas.map(i => i.weight)) : 0;
+
+         const list = document.getElementById('ideaList');
+         if (ideas.length === 0) {
+             list.innerHTML = '<div class="text-slate-500 text-sm py-4 text-center">No ideas yet. Click "New Idea" to add one.</div>';
+         } else {
+             list.innerHTML = ideas.map(idea => `
+                 <div class="p-3 bg-slate-800/50 border border-slate-700 rounded-lg hover:border-slate-600 transition-colors" data-idea-id="${idea.id}">
+                     <div class="flex items-start gap-3">
+                         <div class="flex-1">
+                             <div class="flex items-center gap-2 mb-1">
+                                 <span class="text-xs px-1.5 py-0.5 bg-amber-900/30 text-amber-400 rounded font-mono">#${idea.id}</span>
+                                 <span class="text-xs px-1.5 py-0.5 bg-slate-700 text-slate-300 rounded">${idea.category || 'general'}</span>
+                                 ${idea.project_name ? `<span class="text-xs px-1.5 py-0.5 bg-purple-900/30 text-purple-400 rounded">${idea.project_name}</span>` : '<span class="text-xs px-1.5 py-0.5 bg-blue-900/30 text-blue-400 rounded">Global</span>'}
+                                 <span class="text-xs text-slate-500 ml-auto">weight: ${idea.weight}</span>
+                             </div>
+                             <div class="text-sm text-slate-200">${idea.content}</div>
+                         </div>
+                         <div class="flex flex-col items-center gap-1 shrink-0">
+                             <input type="number" class="w-14 bg-slate-900 border border-slate-600 rounded px-1 py-0.5 text-slate-300 text-xs text-center focus:outline-none focus:border-amber-500" value="${idea.weight}" data-idea-weight="${idea.id}" />
+                             <button onclick="deleteIdea(${idea.id})" class="p-1 text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded transition-colors"><i data-lucide="trash-2" class="w-3 h-3"></i></button>
+                         </div>
+                     </div>
+                 </div>
+             `).join('');
+             // Attach weight change handlers
+             list.querySelectorAll('[data-idea-weight]').forEach(input => {
+                 input.addEventListener('change', (e) => {
+                     const id = parseInt(e.target.dataset.ideaWeight);
+                     const newWeight = parseFloat(e.target.value);
+                     fetch('/api/ideas/' + id, {
+                         method: 'PATCH',
+                         headers: { 'Content-Type': 'application/json' },
+                         body: JSON.stringify({ weight: newWeight }),
+                     }).catch(() => {});
+                 });
+             });
+         }
+         lucide.createIcons();
+     } catch (e) {}
+ }
+
+ async function deleteIdea(id) {
+     if (!confirm('Delete this idea?')) return;
+     try {
+         const res = await fetch('/api/ideas/' + id, { method: 'DELETE' });
+         const data = await res.json();
+         if (data.success) loadIdeas();
+     } catch (e) {}
+ }
+
+ async function populateIdeaProjectFilter() {
+     try {
+         const res = await fetch('/api/projects/graph');
+         const data = await res.json();
+         if (!data.success) return;
+         const select = document.getElementById('ideaProjectFilter');
+         if (!select) return;
+         const existing = new Set(Array.from(select.options).map(o => o.value));
+         data.data.projects.forEach(p => {
+             if (!existing.has(p.name)) {
+                 const opt = document.createElement('option');
+                 opt.value = p.name;
+                 opt.textContent = p.name;
+                 select.appendChild(opt);
+             }
+         });
+     } catch (e) {}
+ }
+
+ async function populateIdeaProjectSelect() {
+     try {
+         const res = await fetch('/api/projects/graph');
+         const data = await res.json();
+         if (!data.success) return;
+         const select = document.getElementById('ideaProject');
+         if (!select) return;
+         data.data.projects.forEach(p => {
+             const opt = document.createElement('option');
+             opt.value = p.name;
+             opt.textContent = p.name;
+             select.appendChild(opt);
+         });
+     } catch (e) {}
+ }
+
+ // Tab click handler for Ideas
+ document.querySelectorAll('.tab-btn').forEach(btn => {
+     btn.addEventListener('click', () => {
+         if (btn.dataset.target === 'tab-ideas') loadIdeas();
+     });
+ });
+
+function drawProjectMap(graph) {
+    const svg = document.getElementById('projectMapSvg');
+    const width = svg.clientWidth || 600;
+    const height = svg.clientHeight || 420;
+    svg.innerHTML = '';
+    const projects = graph.projects;
+    if (projects.length === 0) return;
+
+    const cx = width / 2;
+    const cy = height / 2;
+    const radius = Math.min(width, height) * 0.35;
+    const nodeRadius = Math.max(30, Math.min(55, 40 + projects[0]?.progress / 5));
+    const positions = {};
+
+    projects.forEach((p, i) => {
+        const angle = (2 * Math.PI * i / projects.length) - Math.PI / 2;
+        positions[p.name] = { x: cx + radius * Math.cos(angle), y: cy + radius * Math.sin(angle) };
+    });
+
+    if (graph.connections) {
+        graph.connections.forEach(conn => {
+            const from = positions[conn.from];
+            const to = positions[conn.to];
+            if (from && to) {
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', from.x); line.setAttribute('y1', from.y);
+                line.setAttribute('x2', to.x); line.setAttribute('y2', to.y);
+                line.setAttribute('stroke', '#6366f1'); line.setAttribute('stroke-width', '2');
+                line.setAttribute('stroke-dasharray', '6,4'); line.setAttribute('opacity', '0.6');
+                svg.appendChild(line);
+                const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+                const angle = Math.atan2(to.y - from.y, to.x - from.x);
+                const ax = to.x - nodeRadius * Math.cos(angle);
+                const ay = to.y - nodeRadius * Math.sin(angle);
+                arrow.setAttribute('points', `${ax},${ay} ${ax - 8*Math.cos(angle-0.4)},${ay - 8*Math.sin(angle-0.4)} ${ax - 8*Math.cos(angle+0.4)},${ay - 8*Math.sin(angle+0.4)}`);
+                arrow.setAttribute('fill', '#6366f1'); arrow.setAttribute('opacity', '0.6');
+                svg.appendChild(arrow);
+            }
+        });
+    }
+
+    projects.forEach(p => {
+        const pos = positions[p.name];
+        if (!pos) return;
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.setAttribute('style', 'cursor:pointer');
+        g.addEventListener('click', () => showProjectPage(p.name));
+        g.addEventListener('mouseenter', (e) => showTooltip(e, p));
+        g.addEventListener('mouseleave', hideTooltip);
+
+        const gradId = 'grad-' + p.name.replace(/[^a-zA-Z]/g, '');
+        const defs = svg.querySelector('defs') || (() => { const d = document.createElementNS('http://www.w3.org/2000/svg', 'defs'); svg.appendChild(d); return d; })();
+        const grad = document.createElementNS('http://www.w3.org/2000/svg', 'radialGradient');
+        grad.setAttribute('id', gradId);
+        const stop1 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+        stop1.setAttribute('offset', '0%'); stop1.setAttribute('stop-color', p.progress > 50 ? '#065f46' : '#78350f');
+        const stop2 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+        stop2.setAttribute('offset', '100%'); stop2.setAttribute('stop-color', p.progress > 50 ? '#04332a' : '#552508');
+        grad.appendChild(stop1); grad.appendChild(stop2); defs.appendChild(grad);
+
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('cx', pos.x); circle.setAttribute('cy', pos.y); circle.setAttribute('r', nodeRadius);
+        circle.setAttribute('fill', `url(#${gradId})`);
+        circle.setAttribute('stroke', p.progress > 50 ? '#10b981' : '#f59e0b'); circle.setAttribute('stroke-width', '2');
+        g.appendChild(circle);
+
+        const arc = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        arc.setAttribute('cx', pos.x); arc.setAttribute('cy', pos.y); arc.setAttribute('r', nodeRadius - 3);
+        arc.setAttribute('fill', 'none');
+        arc.setAttribute('stroke', p.progress > 50 ? '#10b981' : '#f59e0b');
+        arc.setAttribute('stroke-width', '3');
+        arc.setAttribute('stroke-dasharray', `${(2 * Math.PI * (nodeRadius - 3) * p.progress / 100).toFixed(1)} ${(2 * Math.PI * (nodeRadius - 3) * (100 - p.progress) / 100).toFixed(1)}`);
+        arc.setAttribute('stroke-dashoffset', '0');
+        arc.setAttribute('stroke-linecap', 'round');
+        arc.setAttribute('transform', `rotate(-90 ${pos.x} ${pos.y})`);
+        g.appendChild(arc);
+
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', pos.x); text.setAttribute('y', pos.y - 3); text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('dominant-baseline', 'middle');
+        text.setAttribute('fill', '#e2e8f0'); text.setAttribute('font-size', '14'); text.setAttribute('font-weight', 'bold');
+        text.textContent = `${p.progress}%`; g.appendChild(text);
+
+        const nameText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        nameText.setAttribute('x', pos.x); nameText.setAttribute('y', pos.y + nodeRadius + 14);
+        nameText.setAttribute('text-anchor', 'middle'); nameText.setAttribute('fill', '#94a3b8'); nameText.setAttribute('font-size', '10');
+        nameText.textContent = p.name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '); g.appendChild(nameText);
+
+        if (p.blockages.length > 0) {
+            const indicator = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            indicator.setAttribute('cx', pos.x + nodeRadius - 5); indicator.setAttribute('cy', pos.y - nodeRadius + 5);
+            indicator.setAttribute('r', '6'); indicator.setAttribute('fill', '#ef4444'); indicator.setAttribute('class', 'blockage-indicator');
+            g.appendChild(indicator);
+        }
+        svg.appendChild(g);
+    });
+
+    const legend = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    legend.setAttribute('transform', 'translate(10, ' + (height - 50) + ')');
+    const legendBg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    legendBg.setAttribute('x', -10); legendBg.setAttribute('y', -35); legendBg.setAttribute('width', 380); legendBg.setAttribute('height', 70);
+    legendBg.setAttribute('fill', 'rgba(15, 23, 42, 0.85)'); legendBg.setAttribute('rx', '4'); legend.appendChild(legendBg);
+    [{ color: '#10b981', label: 'Active (>50%)' }, { color: '#f59e0b', label: 'In Progress' }, { color: '#ef4444', label: 'Blockage' }].forEach((item, i) => {
+        const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        c.setAttribute('cx', i * 130 + 10); c.setAttribute('cy', -15); c.setAttribute('r', '5'); c.setAttribute('fill', item.color); legend.appendChild(c);
+        const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        t.setAttribute('x', i * 130 + 22); t.setAttribute('y', -11); t.setAttribute('fill', '#94a3b8'); t.setAttribute('font-size', '10'); t.textContent = item.label; legend.appendChild(t);
+    });
+    const info = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    info.setAttribute('x', 10); info.setAttribute('y', height - 10); info.setAttribute('fill', '#475569'); info.setAttribute('font-size', '9');
+    info.textContent = 'Click a node to explore project details'; legend.appendChild(info);
+    svg.appendChild(legend);
+}
+
+function showTooltip(e, project) {
+    const tooltip = document.getElementById('projectTooltip');
+    const svgRect = document.getElementById('projectMapSvg').getBoundingClientRect();
+    const x = e.clientX - svgRect.left + 10;
+    const y = e.clientY - svgRect.top - 10;
+    tooltip.style.left = Math.min(x, svgRect.width - 260) + 'px';
+    tooltip.style.top = Math.min(y, svgRect.height - 80) + 'px';
+    const wf = project.wayfinder || {};
+    tooltip.innerHTML = `<div class="font-semibold text-slate-200 mb-1">${project.name}</div>
+        <div class="text-slate-400">Progress: <span class="text-emerald-400">${project.progress}%</span></div>
+        <div class="text-slate-400">Blockages: <span class="${project.blockages.length > 0 ? 'text-red-400' : 'text-emerald-400'}">${project.blockages.length}</span></div>
+        <div class="text-slate-400">Artifacts: ${Object.values(project.artifacts).filter(v=>v).length}/4</div>
+        <div class="text-slate-400">Decisions: ${wf.decisionNodes || 0} | Fog: ${wf.fogItems || 0} | Tickets: ${project.ticketCount || 0}</div>`;
+    tooltip.classList.remove('hidden');
+}
+
+function hideTooltip() {
+    document.getElementById('projectTooltip').classList.add('hidden');
+}
+
+document.querySelectorAll('.project-filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => applyFilter(btn.dataset.filter));
 });
 
-let currentStep = 1;
-setInterval(() => {
-    document.querySelectorAll('.task-step').forEach(step => { step.classList.add('opacity-50'); const ind = step.querySelector('.step-indicator'); ind.classList.remove('bg-emerald-500','animate-pulse-fast','glow-emerald'); ind.classList.add('bg-slate-600'); step.querySelector('.step-text').classList.remove('text-emerald-100'); });
-    currentStep = currentStep >= 4 ? 1 : currentStep + 1;
-    const activeStep = document.querySelector(`.task-step[data-step="${currentStep}"]`);
-    if (activeStep) { activeStep.classList.remove('opacity-50'); const ind = activeStep.querySelector('.step-indicator'); ind.classList.remove('bg-slate-600'); ind.classList.add('bg-emerald-500','animate-pulse-fast','glow-emerald'); activeStep.querySelector('.step-text').classList.add('text-emerald-100'); }
-}, 5000);
-
-const connectionToggle = document.getElementById('connectionToggle');
-const connectionText = document.getElementById('connectionText');
-let isPolling = true;
-connectionToggle.addEventListener('change', (e) => {
-    if (e.target.checked) { connectionText.textContent = 'ONLINE'; connectionText.classList.replace('text-red-400','text-slate-300'); isPolling = true; }
-    else { connectionText.textContent = 'OFFLINE'; connectionText.classList.replace('text-slate-300','text-red-400'); isPolling = false; }
+document.getElementById('autoRefreshProjects').addEventListener('change', (e) => {
+    if (e.target.checked) {
+        projectAutoRefreshInterval = setInterval(refreshProjectGraph, 15000);
+    } else {
+        clearInterval(projectAutoRefreshInterval);
+    }
 });
 
-// Chart setup
+const hashProject = window.location.hash.match(/#project\/(.+)/);
+if (hashProject) {
+    showProjectPage(decodeURIComponent(hashProject[1]));
+}
+
+// === USAGE TAB ===
+async function refreshUsage() {
+    try {
+        const [costRes, alertsRes, usageRes, sessionsRes] = await Promise.all([
+            fetch('/api/usage/cost-report'),
+            fetch('/api/usage/alerts'),
+            fetch('/api/usage'),
+            fetch('/api/usage/sessions'),
+        ]);
+        const costData = await costRes.json();
+        const alertsData = await alertsRes.json();
+        const usageData = await usageRes.json();
+        const sessionsData = await sessionsRes.json();
+
+        if (costData.success) {
+            document.getElementById('usage-today').textContent = '$' + costData.data.today.toFixed(4);
+            document.getElementById('usage-today-tokens').textContent = (costData.data.totalTokens || 0) + ' tokens';
+            document.getElementById('usage-week').textContent = '$' + (costData.data.weekEstimate || 0);
+            document.getElementById('usage-entries').textContent = usageData.success ? (usageData.data.totalEntries || 0) : 0;
+            const pct = Math.min(100, (costData.data.today / 0.50) * 100);
+            const bar = document.getElementById('cost-bar');
+            bar.style.width = pct + '%';
+            bar.className = pct > 80 ? 'bg-red-500 h-2 rounded-full cost-bar' : pct > 50 ? 'bg-amber-500 h-2 rounded-full cost-bar' : 'bg-emerald-500 h-2 rounded-full cost-bar';
+        }
+        if (alertsData.success) {
+            const alertsDiv = document.getElementById('usage-alerts');
+            if (alertsData.data && alertsData.data.length > 0) {
+                alertsDiv.innerHTML = alertsData.data.map(a => {
+                    const cls = a.level === 'critical' ? 'bg-red-900/50 border-red-800 text-red-300' : 'bg-amber-900/50 border-amber-800 text-amber-300';
+                    return `<div class="p-3 border rounded-lg ${cls}">${a.message}</div>`;
+                }).join('');
+            } else {
+                alertsDiv.innerHTML = '<div class="p-3 bg-emerald-900/30 border border-emerald-800 rounded-lg text-emerald-300 text-sm">Budget looks healthy</div>';
+            }
+        }
+        if (usageData.success) {
+            const modelsDiv = document.getElementById('usage-models');
+            const models = usageData.data.modelsUsed || {};
+            if (Object.keys(models).length > 0) {
+                modelsDiv.innerHTML = Object.entries(models).map(([model, count]) => `<div class="flex items-center justify-between p-2 bg-slate-800 rounded"><span class="font-mono text-slate-300 text-xs">${model}</span><span class="text-xs text-slate-400">${count} calls</span></div>`).join('');
+            } else {
+                modelsDiv.innerHTML = '<div class="text-slate-500 text-sm">No model usage data yet</div>';
+            }
+        }
+        if (sessionsData.success) {
+            const sessionsDiv = document.getElementById('usage-sessions');
+            const sessions = sessionsData.data || [];
+            if (sessions.length > 0) {
+                sessionsDiv.innerHTML = sessions.slice(0, 5).map(s => `<div class="flex items-center justify-between p-2 bg-slate-800 rounded"><span class="font-mono text-slate-300 text-xs">${s.file}</span><span class="text-xs text-slate-400">${s.model || 'unknown'} | ${(s.size/1024).toFixed(1)}KB</span></div>`).join('');
+            } else {
+                sessionsDiv.innerHTML = '<div class="text-slate-500 text-sm">No sessions found</div>';
+            }
+        }
+    } catch(e) {}
+}
+
+// === COST CHART ===
+let costChart;
+async function refreshCostChart() {
+    try {
+        const res = await fetch('/api/usage/cost-history?days=30');
+        const data = await res.json();
+        if (data.success && data.data.length > 0) {
+            const daily = {};
+            data.data.forEach(h => {
+                const date = h.timestamp.split('T')[0];
+                daily[date] = (daily[date] || 0) + h.cost;
+            });
+            const labels = Object.keys(daily).sort();
+            const costs = labels.map(l => daily[l]);
+            const ctx = document.getElementById('costChart').getContext('2d');
+            if (costChart) costChart.destroy();
+            costChart = new Chart(ctx, {
+                type: 'bar',
+                data: { labels: labels, datasets: [{ label: 'Cost ($)', data: costs, backgroundColor: 'rgba(16, 185, 129, 0.5)', borderColor: '#10b981', borderWidth: 1 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { display: true, ticks: { color: '#64748b', maxTicksLimit: 10 } }, y: { type: 'linear', grid: { color: '#1e293b' }, ticks: { color: '#64748b' } } } }
+            });
+        }
+    } catch(e) {}
+}
+
+// === PROMPT ROUTING ===
+async function loadRoutingPlan() {
+    try { const res = await fetch('/api/prompt/routing-plan'); const data = await res.json(); if (data.success) console.log('Routing plan loaded:', data.data); } catch(e) {}
+}
+async function loadModelRecommendations() {
+    try {
+        const res = await fetch('/api/usage/model-recommendations?budget=0.50');
+        const data = await res.json();
+        if (data.success) {
+            const container = document.getElementById('modelRecommendations');
+            container.innerHTML = data.data.map(m => `<div class="agent-card p-3 bg-slate-800 rounded-lg border ${m.fitsBudget ? 'border-emerald-600' : 'border-slate-700 opacity-50'}"><div class="font-semibold text-sm font-mono ${m.fitsBudget ? 'text-emerald-400' : 'text-slate-400'}">${m.name}</div><div class="text-xs text-slate-500 mt-1">${m.quality} — ${m.bestFor}</div><div class="text-xs mt-1 ${m.fitsBudget ? 'text-emerald-400' : 'text-red-400'}">${m.fitsBudget ? 'Fits budget' : 'Over budget'}</div><div class="text-xs text-slate-500">~${Math.floor(0.50 / (m.costPer1k * 100))} req/day</div></div>`).join('');
+            lucide.createIcons();
+        }
+    } catch(e) {}
+}
+async function classifyPrompt() {
+    const prompt = document.getElementById('routingPrompt').value;
+    if (!prompt) return;
+    try {
+        const res = await fetch('/api/prompt/classify?prompt=' + encodeURIComponent(prompt));
+        const data = await res.json();
+        if (data.success) {
+            const result = data.data;
+            const resultDiv = document.getElementById('routingResult');
+            resultDiv.innerHTML = `<div class="space-y-2"><div class="flex items-center gap-2"><span class="px-2 py-1 bg-purple-900 text-purple-300 rounded text-xs">${result.rule}</span><span class="text-xs text-slate-400">${result.description}</span></div><div class="flex items-center justify-between"><span class="text-slate-400">Recommended Model:</span><span class="font-mono text-emerald-400">${result.models[0]}</span></div><div class="flex items-center justify-between"><span class="text-slate-400">Max Tokens:</span><span class="font-mono text-slate-200">${result.maxTokens}</span></div><div class="flex items-center justify-between"><span class="text-slate-400">Cost/Request:</span><span class="font-mono text-slate-200">$${result.costPerRequest}</span></div></div>`;
+        }
+    } catch(e) {}
+}
+async function optimizeAndShow() {
+    const prompt = document.getElementById('optimizePrompt').value;
+    if (!prompt) return;
+    try {
+        const res = await fetch('/api/prompt/optimize?prompt=' + encodeURIComponent(prompt));
+        const data = await res.json();
+        if (data.success) {
+            const result = data.data;
+            const resultDiv = document.getElementById('optimizeResult');
+            resultDiv.classList.remove('hidden');
+            resultDiv.innerHTML = `<div class="space-y-2"><div><span class="text-slate-400 text-xs">Optimized:</span> <span class="text-slate-200">${result.optimized}</span></div>${result.optimizations.length > 0 ? '<div class="mt-2"><span class="text-amber-400 text-xs font-semibold">Suggestions:</span><ul class="mt-1 space-y-1">' + result.optimizations.map(o => `<li class="text-xs text-amber-300">${o}</li>`).join('') + '</ul></div>' : ''}<div class="mt-2 text-xs text-emerald-400">Estimated savings: ${result.estimatedSavings} tokens</div></div>`;
+        }
+    } catch(e) {}
+}
+async function estimateCostShow() {
+    const model = document.getElementById('cost-model').value;
+    const input = parseInt(document.getElementById('cost-input').value) || 0;
+    const output = parseInt(document.getElementById('cost-output').value) || 0;
+    try {
+        const res = await fetch('/api/prompt/estimate?model=' + model + '&inputTokens=' + input + '&outputTokens=' + output);
+        const data = await res.json();
+        if (data.success) {
+            const result = data.data;
+            const resultDiv = document.getElementById('cost-result');
+            resultDiv.classList.remove('hidden');
+            resultDiv.innerHTML = `<div class="space-y-2"><div class="flex items-center justify-between"><span class="text-slate-400">Model:</span><span class="font-mono text-slate-200">${result.modelName}</span></div><div class="flex items-center justify-between"><span class="text-slate-400">Input Tokens:</span><span class="font-mono text-slate-200">${result.inputTokens}</span></div><div class="flex items-center justify-between"><span class="text-slate-400">Output Tokens:</span><span class="font-mono text-slate-200">${result.outputTokens}</span></div><div class="flex items-center justify-between p-2 bg-slate-800 rounded"><span class="font-semibold text-slate-200">Total Cost:</span><span class="font-mono text-emerald-400 text-lg">$${result.totalCost}</span></div></div>`;
+        }
+    } catch(e) {}
+}
+
+// === OPENCODE ===
+async function refreshOpenCode() {
+    try {
+        const [configRes, agentsRes, cmdsRes, sessionsRes, logsRes] = await Promise.all([
+            fetch('api/opencode/config'),
+            fetch('api/opencode/agents'),
+            fetch('api/opencode/commands'),
+            fetch('api/opencode/sessions'),
+            fetch('api/opencode/logs'),
+        ]);
+        const config = await configRes.json();
+        if (config.success && config.data) {
+            const d = config.data;
+            document.getElementById('opencode-config').innerHTML = `
+                <div class="flex items-center justify-between p-3 bg-slate-800 rounded"><span class="text-slate-400">Active Model</span><span class="font-mono text-emerald-400">${d.model || 'N/A'}</span></div>
+                <div class="flex items-center justify-between p-3 bg-slate-800 rounded"><span class="text-slate-400">Provider</span><span class="font-mono text-slate-200">${d.provider || 'N/A'}</span></div>
+                <div class="flex items-center justify-between p-3 bg-slate-800 rounded"><span class="text-slate-400">Default Agent</span><span class="font-mono text-slate-200">${d.defaultAgent || 'N/A'}</span></div>
+                <div class="flex items-center justify-between p-3 bg-slate-800 rounded"><span class="text-slate-400">Agents</span><span class="font-mono text-slate-200">${(d.agents || []).length}</span></div>
+                <div class="flex items-center justify-between p-3 bg-slate-800 rounded"><span class="text-slate-400">Commands</span><span class="font-mono text-slate-200">${(d.commands || []).length}</span></div>
+                <div class="flex items-center justify-between p-3 bg-slate-800 rounded"><span class="text-slate-400">Skill Paths</span><span class="font-mono text-slate-200">${(d.skillsPaths || []).join(', ') || 'None'}</span></div>`;
+        }
+        const agents = await agentsRes.json();
+        if (agents.success) {
+            const agentList = agents.data || [];
+            document.getElementById('opencode-catalog-stats').textContent = `${agentList.length} Agents | ${(await cmdsRes.clone().json()).data?.length || 0} Commands`;
+            document.getElementById('opencode-agents').innerHTML = agentList.map(a => `<div class="agent-card p-2.5 bg-slate-800/80 rounded-lg border border-slate-700 hover:border-blue-500 transition-all"><div class="flex items-center justify-between"><span class="font-semibold text-slate-200 text-sm">${a.name}</span><span class="text-xs px-1.5 py-0.5 bg-blue-900/40 text-blue-300 rounded font-mono">${a.files.length} rules</span></div><p class="text-xs text-slate-400 mt-1 line-clamp-1">${a.description || 'Specialized agent definition'}</p></div>`).join('') || '<div class="text-slate-500 text-sm py-4 text-center">No agents registered</div>';
+        }
+        const cmds = await cmdsRes.json();
+        if (cmds.success) {
+            document.getElementById('opencode-commands').innerHTML = (cmds.data || []).map(c => `<div class="p-2 bg-slate-800/60 rounded border border-slate-700/50 hover:border-slate-600"><div class="text-slate-200 font-mono text-xs font-semibold">${c.name}</div><div class="text-slate-400 text-xs mt-0.5">${c.title}</div></div>`).join('') || '<div class="text-slate-500 text-xs py-4 text-center">No commands available</div>';
+        }
+        const sessions = await sessionsRes.json();
+        if (sessions.success) {
+            document.getElementById('opencode-sessions').innerHTML = (sessions.data || []).map(s => `<div class="flex items-center justify-between p-3 bg-slate-800/80 rounded-lg border border-slate-700"><div class="flex items-center gap-2"><i data-lucide="file-code" class="w-4 h-4 text-amber-400"></i><span class="font-mono text-slate-200 text-xs">${s.file}</span></div><div class="flex items-center gap-3"><span class="text-xs text-slate-400">${(s.size/1024).toFixed(1)} KB</span><span class="text-xs text-emerald-400 font-mono">Synced</span></div></div>`).join('') || '<div class="text-slate-500 text-sm py-4 text-center">No session logs in memory vault</div>';
+        }
+        const logs = await logsRes.json();
+        if (logs.success) {
+            document.getElementById('opencode-logs').innerHTML = (logs.data || []).map(l => `<div class="p-3 bg-slate-800/80 rounded-lg border border-slate-700"><div class="flex items-center justify-between mb-1.5"><div class="flex items-center gap-2"><i data-lucide="terminal" class="w-3.5 h-3.5 text-red-400"></i><span class="font-mono text-slate-200 text-xs font-semibold">${l.file}</span></div><span class="text-xs px-2 py-0.5 bg-slate-700 text-slate-300 rounded font-mono">${(l.size/1024).toFixed(1)}KB | ${l.lines} lines</span></div><pre class="text-xs text-slate-400 font-mono overflow-x-auto max-h-24 p-2 bg-slate-900 rounded border border-slate-800">${(l.preview || '').toString().substring(0, 600)}</pre></div>`).join('') || '<div class="text-slate-500 text-sm py-4 text-center">No audit logs available</div>';
+        }
+        lucide.createIcons();
+    } catch(e) {}
+}
+function refreshLogs() { refreshOpenCode(); }
+
+// === AUTO-START BLOCK ===
+let activeTab = 'tab-overview';
+document.querySelectorAll('.tab-btn').forEach(btn => { btn.addEventListener('click', () => { activeTab = btn.dataset.target; }); });
+
+// === SSE ===
+let eventSource = null;
+function connectSSE() {
+    eventSource = new EventSource('api/stream');
+    eventSource.onmessage = (event) => {
+        try {
+            const data = JSON.parse(event.data);
+            updateDashboard(data);
+        } catch(e) {}
+    };
+    eventSource.onerror = () => { setTimeout(connectSSE, 3000); };
+}
+async function updateDashboard(data) {
+    if (!data || !data.telemetry) return;
+    const { telemetry } = data;
+    if (telemetry.models.length > 0) {
+        document.getElementById('metric-vram').textContent = telemetry.totalVRAM;
+        document.getElementById('metric-models').textContent = telemetry.models.length;
+        document.getElementById('metric-tps').textContent = (30 + Math.random() * 15).toFixed(1);
+    }
+    if (data.workspaces && data.workspaces.length > 0) {
+        const ws = data.workspaces[0];
+        const wsDiv = document.getElementById('workspaceStatus');
+        if (ws.git) {
+            wsDiv.innerHTML = `<div class="flex items-center gap-2"><span class="text-slate-400">Branch:</span><span class="text-emerald-400 font-mono">${ws.git.branch || 'N/A'}</span></div><div class="flex items-center gap-2"><span class="text-slate-400">Last Commit:</span><span class="text-slate-200 font-mono">${ws.git.lastCommit || 'N/A'}</span></div>`;
+        }
+    }
+    if (data.tickets && (data.tickets.issues?.length || data.tickets.pullRequests?.length)) {
+        const tkDiv = document.getElementById('ticketsStatus');
+        let html = '';
+        (data.tickets.issues || []).forEach(i => { html += `<div class="flex items-center gap-2"><span class="px-1.5 py-0.5 ${i.state==='open'?'bg-emerald-900 text-emerald-300':'bg-slate-800 text-slate-400'} rounded text-xs">#${i.number}</span><span class="text-slate-300">${i.title}</span></div>`; });
+        (data.tickets.pullRequests || []).forEach(p => { html += `<div class="flex items-center gap-2"><span class="px-1.5 py-0.5 bg-blue-900 text-blue-300 rounded text-xs">PR #${p.number}</span><span class="text-slate-300">${p.title}</span></div>`; });
+        tkDiv.innerHTML = html || 'No tickets';
+    }
+}
+
+// === CHART ===
 const ctx = document.getElementById('performanceChart').getContext('2d');
 let chartLabels = Array.from({length: 20}, (_, i) => i);
 let tpsData = Array(20).fill(40).map(v => v + (Math.random()*10 - 5));
 let vramData = Array(20).fill(7.8).map(v => v + (Math.random()*0.5 - 0.25));
 const chart = new Chart(ctx, {
     type: 'line',
-    data: { labels: chartLabels, datasets: [
-        { label: 'TPS', data: tpsData, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', borderWidth: 2, tension: 0.4, fill: true, yAxisID: 'y' },
-        { label: 'VRAM GB', data: vramData, borderColor: '#3b82f6', backgroundColor: 'transparent', borderWidth: 2, borderDash: [5,5], tension: 0.4, yAxisID: 'y1' }
-    ]},
+    data: { labels: chartLabels, datasets: [{ label: 'TPS', data: tpsData, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', borderWidth: 2, tension: 0.4, fill: true, yAxisID: 'y' }, { label: 'VRAM GB', data: vramData, borderColor: '#3b82f6', backgroundColor: 'transparent', borderWidth: 2, borderDash: [5,5], tension: 0.4, yAxisID: 'y1' }] },
     options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { type:'linear', display:true, position:'left', grid:{color:'#1e293b'}, min:0, max:80, ticks:{color:'#64748b'} }, y1: { type:'linear', display:true, position:'right', grid:{drawOnChartArea:false}, min:0, max:12, ticks:{color:'#64748b'} } } }
 });
 
-// Terminal logs
+// === TERMINAL ===
 const terminalOutput = document.getElementById('terminalOutput');
 const autoScrollToggle = document.getElementById('autoScrollToggle');
 const fakeLogs = [
@@ -567,55 +2035,7 @@ function appendLog() {
 }
 for(let i=0;i<12;i++) appendLog();
 
-// SSE Connection
-let eventSource = null;
-function connectSSE() {
-    eventSource = new EventSource('http://127.0.0.1:3011/api/stream');
-    eventSource.onmessage = (event) => {
-        try {
-            const data = JSON.parse(event.data);
-            updateDashboard(data);
-        } catch(e) {}
-    };
-    eventSource.onerror = () => { setTimeout(connectSSE, 3000); };
-}
-
-async function updateDashboard(data) {
-    if (!data || !data.telemetry) return;
-    const { telemetry, workspaces, tickets } = data;
-
-    if (telemetry.models.length > 0) {
-        const totalVRAM = telemetry.totalVRAM;
-        document.getElementById('metric-vram').textContent = totalVRAM;
-        document.getElementById('vram-bar').style.width = `${(totalVRAM / 12) * 100}%`;
-        document.getElementById('metric-models').textContent = telemetry.models.length;
-        document.getElementById('metric-tps').textContent = (30 + Math.random() * 15).toFixed(1);
-        document.getElementById('modelLabel').textContent = `Model: ${telemetry.models[0]?.name || 'qwen2.5-coder'}`;
-    }
-
-    if (workspaces && workspaces.length > 0) {
-        const ws = workspaces[0];
-        const wsDiv = document.getElementById('workspaceStatus');
-        if (ws.git) {
-            wsDiv.innerHTML = `
-                <div class="flex items-center gap-2"><span class="text-slate-400">Branch:</span><span class="text-emerald-400 font-mono">${ws.git.branch || 'N/A'}</span></div>
-                <div class="flex items-center gap-2"><span class="text-slate-400">Last Commit:</span><span class="text-slate-200 font-mono">${ws.git.lastCommit || 'N/A'}</span></div>
-                <div class="flex items-center gap-2"><span class="text-slate-400">Uncommitted:</span><span class="${ws.git.uncommittedChanges ? 'text-amber-400' : 'text-emerald-400'} font-mono">${ws.git.uncommittedChanges ? 'Yes' : 'Clean'}</span></div>
-                <div class="flex items-center gap-2 flex-wrap">Artifacts: ${Object.entries(ws.artifacts || {}).filter(([,v])=>v).map(([k])=>`<span class="px-1.5 py-0.5 bg-purple-900 text-purple-300 rounded text-xs">${k}</span>`).join('') || 'None'}</div>
-            `;
-        }
-    }
-
-    if (tickets && (tickets.issues?.length || tickets.pullRequests?.length)) {
-        const tkDiv = document.getElementById('ticketsStatus');
-        let html = '';
-        (tickets.issues || []).forEach(i => { html += `<div class="flex items-center gap-2"><span class="px-1.5 py-0.5 ${i.state==='open'?'bg-emerald-900 text-emerald-300':'bg-slate-800 text-slate-400'} rounded text-xs">#${i.number}</span><span class="text-slate-300">${i.title}</span></div>`; });
-        (tickets.pullRequests || []).forEach(p => { html += `<div class="flex items-center gap-2"><span class="px-1.5 py-0.5 bg-blue-900 text-blue-300 rounded text-xs">PR #${p.number}</span><span class="text-slate-300">${p.title}</span></div>`; });
-        tkDiv.innerHTML = html || 'No tickets';
-    }
-}
-
-// KV Cache Calculator
+// === KV CACHE ===
 function updateKVCache() {
     const l = parseFloat(document.getElementById('kv-layers').value)||0;
     const h = parseFloat(document.getElementById('kv-heads').value)||0;
@@ -628,20 +2048,15 @@ function updateKVCache() {
 ['kv-layers','kv-heads','kv-dim','kv-context','kv-precision'].forEach(id => { document.getElementById(id).addEventListener('input', updateKVCache); });
 updateKVCache();
 
-// Mode toggle
+// === MODE TOGGLE ===
 const modeToggle = document.getElementById('modeToggle');
 const passiveRec = document.getElementById('passiveRecommendation');
 modeToggle.addEventListener('change', () => {
-    if (modeToggle.checked) {
-        passiveRec.textContent = 'Active Mode: Ollama synthesis enabled';
-        passiveRec.className = 'text-xs font-mono text-amber-400';
-    } else {
-        passiveRec.textContent = 'Passive Mode: Rule-based engine active';
-        passiveRec.className = 'text-xs font-mono text-emerald-400';
-    }
+    if (modeToggle.checked) { passiveRec.textContent = 'Active Mode: Ollama synthesis enabled'; passiveRec.className = 'text-xs font-mono text-amber-400'; }
+    else { passiveRec.textContent = 'Passive Mode: Rule-based engine active'; passiveRec.className = 'text-xs font-mono text-emerald-400'; }
 });
 
-// Generate action plan
+// === GENERATE ===
 document.getElementById('btnGenerate').addEventListener('click', async () => {
     const btn = document.getElementById('btnGenerate');
     const result = document.getElementById('activeResult');
@@ -649,37 +2064,28 @@ document.getElementById('btnGenerate').addEventListener('click', async () => {
     result.classList.remove('hidden');
     result.innerHTML = '<span class="text-amber-400">Querying local Ollama model...</span>';
     try {
-        const res = await fetch('http://127.0.0.1:3011/api/command', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({command: `ollama run qwen2.5-coder ${document.getElementById('activePrompt').value || 'Generate 3-bullet action plan'}`}) });
+        const res = await fetch('api/command', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({command: `ollama run qwen2.5-coder ${document.getElementById('activePrompt').value || 'Generate 3-bullet action plan'}`}) });
         const data = await res.json();
-        result.innerHTML = `<div class="space-y-2"><div class="flex items-start gap-2"><span class="text-emerald-400">●</span><span>Review uncommitted changes and run TDD validation</span></div><div class="flex items-start gap-2"><span class="text-emerald-400">●</span><span>Update WAYFINDER.md decision nodes for next sprint</span></div><div class="flex items-start gap-2"><span class="text-emerald-400">●</span><span>Commit passing tests with atomic commit message</span></div></div>`;
-    } catch(e) {
         result.innerHTML = '<div class="space-y-2"><div class="flex items-start gap-2"><span class="text-emerald-400">●</span><span>Review uncommitted changes and run TDD validation</span></div><div class="flex items-start gap-2"><span class="text-emerald-400">●</span><span>Update WAYFINDER.md decision nodes for next sprint</span></div><div class="flex items-start gap-2"><span class="text-emerald-400">●</span><span>Commit passing tests with atomic commit message</span></div></div>';
-    }
+    } catch(e) { result.innerHTML = '<div class="space-y-2"><div class="flex items-start gap-2"><span class="text-emerald-400">●</span><span>Review uncommitted changes and run TDD validation</span></div><div class="flex items-start gap-2"><span class="text-emerald-400">●</span><span>Update WAYFINDER.md decision nodes for next sprint</span></div><div class="flex items-start gap-2"><span class="text-emerald-400">●</span><span>Commit passing tests with atomic commit message</span></div></div>'; }
     btn.disabled = false; btn.classList.remove('opacity-50');
 });
 
-// Handoff button
+// === HANDOFF ===
 document.getElementById('btnHandoff').addEventListener('click', async () => {
-    try {
-        const res = await fetch('http://127.0.0.1:3011/api/handoff', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({workspace:'/home/martin/Code'}) });
-        const data = await res.json();
-        if (data.success) appendLog();
-    } catch(e) {}
+    try { const res = await fetch('api/handoff', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({workspace:'/home/martin/Code'}) }); const data = await res.json(); if (data.success) appendLog(); } catch(e) {}
 });
 
-// Live data polling
-async function pollData() {
-    if (!isPolling) return;
-    try {
-        const res = await fetch('http://127.0.0.1:3011/api/telemetry');
-        const data = await res.json();
-        if (data.success && data.data) updateDashboard({telemetry: data.data});
-    } catch(e) {}
-    setTimeout(pollData, 2000);
-}
+// === POLLING ===
+let isPolling = true;
+connectionToggle.addEventListener('change', (e) => {
+    if (e.target.checked) { connectionText.textContent = 'ONLINE'; connectionText.classList.replace('text-red-400','text-slate-300'); isPolling = true; }
+    else { connectionText.textContent = 'OFFLINE'; connectionText.classList.replace('text-slate-300','text-red-400'); isPolling = false; }
+});
 
-// Stats animation
+// === STATS ===
 setInterval(() => {
+    if (!isPolling) return;
     const reads = Math.floor(Math.random() * 5);
     const edits = Math.floor(Math.random() * 3);
     const bash = Math.floor(Math.random() * 2);
@@ -688,16 +2094,30 @@ setInterval(() => {
     document.getElementById('stat-bash').textContent = (parseInt(document.getElementById('stat-bash').textContent||'0') + bash).toString();
     const newTps = Math.max(10, Math.min(75, tpsData[tpsData.length-1] + (Math.random()*10-5)));
     const newVram = Math.max(4, Math.min(11.5, vramData[vramData.length-1] + (Math.random()*0.4-0.2)));
-    tpsData.shift(); tpsData.push(newTps);
-    vramData.shift(); vramData.push(newVram);
-    chart.update('none');
+    tpsData.shift(); tpsData.push(newTps); vramData.shift(); vramData.push(newVram); chart.update('none');
     document.getElementById('metric-tps').textContent = newTps.toFixed(1);
-    if(Math.random() > 0.3) appendLog();
-}, 2000);
+    if(Math.random() > 0.5) appendLog();
+}, 5000);
 
-// Init
+// === TASK STEPS ===
+let currentStep = 1;
+setInterval(() => {
+    if (!isPolling) return;
+    document.querySelectorAll('.task-step').forEach(step => { step.classList.add('opacity-50'); const ind = step.querySelector('.step-indicator'); ind.classList.remove('bg-emerald-500','animate-pulse-fast','glow-emerald'); ind.classList.add('bg-slate-600'); step.querySelector('.step-text').classList.remove('text-emerald-100'); });
+    currentStep = currentStep >= 4 ? 1 : currentStep + 1;
+    const activeStep = document.querySelector(`.task-step[data-step="${currentStep}"]`);
+    if (activeStep) { activeStep.classList.remove('opacity-50'); const ind = activeStep.querySelector('.step-indicator'); ind.classList.remove('bg-slate-600'); ind.classList.add('bg-emerald-500','animate-pulse-fast','glow-emerald'); activeStep.querySelector('.step-text').classList.add('text-emerald-100'); }
+}, 10000);
+
+// === INIT ===
+lucide.createIcons();
+refreshSystem();
+setInterval(() => {
+    if (!isPolling) return;
+    refreshSystem();
+}, 20000);
 connectSSE();
-pollData();
+console.log('OverApp initialized. Click tabs to load data. No auto-start.');
 </script>
 </body>
 </html>
