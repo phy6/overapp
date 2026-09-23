@@ -65,6 +65,22 @@
 </head>
 <body class="bg-slate-950 text-slate-200 font-sans min-h-screen flex flex-col antialiased">
 
+<div id="pageGuideModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 backdrop-blur-sm" style="display:none;">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative mx-4">
+        <button onclick="closePageGuide()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-100"><i data-lucide="x" class="w-5 h-5"></i></button>
+        <div class="flex items-center gap-2 mb-3">
+            <i data-lucide="compass" class="w-6 h-6 text-emerald-400"></i>
+            <h3 id="pageGuideTitle" class="text-lg font-bold text-slate-100">Command Center Guide</h3>
+        </div>
+        <div id="pageGuideBody" class="text-sm text-slate-300 space-y-3 mb-6 max-h-96 overflow-y-auto pr-2">
+            Loading guide...
+        </div>
+        <div class="flex justify-end">
+            <button onclick="closePageGuide()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition-colors">Got it</button>
+        </div>
+    </div>
+</div>
+
 <div id="modalOverlay" class="fixed inset-0 z-50 modal-overlay hidden items-center justify-center">
     <div id="modalContent" class="modal-content bg-slate-900 border border-slate-700 rounded-xl p-6 max-w-lg w-full mx-4 shadow-2xl max-h-[80vh] overflow-y-auto">
         <div class="flex items-center justify-between mb-4">
@@ -393,7 +409,10 @@
         <div id="tab-agent" class="tab-content space-y-8">
             <!-- Section: ReAct Loop -->
             <section>
-                <div class="flex items-center gap-2 mb-4"><i data-lucide="git-branch-plus" class="w-5 h-5 text-purple-400"></i><h2 class="text-lg font-bold text-slate-100">Autonomous ReAct Loop</h2></div>
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-2"><i data-lucide="git-branch-plus" class="w-5 h-5 text-purple-400"></i><h2 class="text-lg font-bold text-slate-100">Autonomous ReAct Loop</h2></div>
+                    <button onclick="showPageGuide('agent')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded border border-slate-700 flex items-center gap-1"><i data-lucide="help-circle" class="w-3 h-3 text-emerald-400"></i> Page Guide</button>
+                </div>
                 <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
                     <div class="flex flex-col md:flex-row items-center justify-center gap-4 text-center">
                         <div class="bg-slate-800 border border-slate-700 p-4 rounded-lg w-full md:w-48"><i data-lucide="user" class="w-8 h-8 text-blue-400 mx-auto mb-2"></i><h3 class="font-semibold text-slate-200">User Prompt</h3></div>
@@ -505,7 +524,10 @@
         <div id="tab-system" class="tab-content space-y-8">
             <!-- Section: Monitoring -->
             <section>
-                <div class="flex items-center gap-2 mb-4"><i data-lucide="activity" class="w-5 h-5 text-emerald-400"></i><h2 class="text-lg font-bold text-slate-100">Monitoring</h2><span class="text-xs text-slate-500 font-mono">Real-time system metrics</span></div>
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-2"><i data-lucide="activity" class="w-5 h-5 text-emerald-400"></i><h2 class="text-lg font-bold text-slate-100">Monitoring</h2><span class="text-xs text-slate-500 font-mono">Real-time system metrics</span></div>
+                    <button onclick="showPageGuide('system')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded border border-slate-700 flex items-center gap-1"><i data-lucide="help-circle" class="w-3 h-3 text-emerald-400"></i> Page Guide</button>
+                </div>
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg">
                         <h2 class="text-lg font-semibold mb-4 flex items-center gap-2"><i data-lucide="activity" class="w-5 h-5 text-emerald-400"></i> System Resources</h2>
@@ -590,6 +612,7 @@
             <section>
                 <div class="flex items-center justify-between mb-4">
                     <div class="flex items-center gap-2"><i data-lucide="git-network" class="w-5 h-5 text-purple-400"></i><h2 class="text-lg font-semibold flex items-center gap-2">Project Map <span class="text-xs text-slate-500 font-normal">(click nodes to expand — hover for details)</span></h2></div>
+                    <button onclick="showPageGuide('projects')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded border border-slate-700 flex items-center gap-1"><i data-lucide="help-circle" class="w-3 h-3 text-emerald-400"></i> Page Guide</button>
                 </div>
                 <div class="relative bg-slate-950 rounded-lg border border-slate-800 overflow-hidden" style="min-height: 400px;">
                     <svg id="projectMapSvg" width="100%" height="420"></svg>
@@ -2137,12 +2160,57 @@ document.getElementById('btnHandoff').addEventListener('click', async () => {
     try { const res = await fetch('api/handoff', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({workspace:'/home/martin/Code'}) }); const data = await res.json(); if (data.success) appendLog(); } catch(e) {}
 });
 
-// === POLLING ===
-let isPolling = true;
-connectionToggle.addEventListener('change', (e) => {
-    if (e.target.checked) { connectionText.textContent = 'ONLINE'; connectionText.classList.replace('text-red-400','text-slate-300'); isPolling = true; }
-    else { connectionText.textContent = 'OFFLINE'; connectionText.classList.replace('text-slate-300','text-red-400'); isPolling = false; }
-});
+// === PAGE GUIDES ===
+const pageGuides = {
+    projects: {
+        title: "Projects & Wayfinder Guide",
+        content: `
+            <p><strong>Overview:</strong> The Projects tab manages your engineering workspaces, repositories, and decision-making state.</p>
+            <p><strong>Project Map:</strong> Visualizes relationships and dependencies between local codebases. Click any project node to open its drilldown page.</p>
+            <p><strong>Seeding &amp; Initialization:</strong> Use the <strong>New Project</strong> button to initialize a project folder with automated <code>CONTEXT.md</code>, <code>WAYFINDER.md</code>, <code>TODO.md</code>, and <code>AGENT.md</code> artifacts.</p>
+            <p><strong>Wayfinder &amp; Fog:</strong> Inside each project view, answer open fog questions and resolve architectural decision nodes to guide the <code>opencode</code> agent forward.</p>
+        `
+    },
+    system: {
+        title: "System Monitor Guide",
+        content: `
+            <p><strong>Overview:</strong> Real-time hardware telemetry and process management.</p>
+            <p><strong>CPU &amp; Memory:</strong> Tracks CPU load averages, RAM consumption, and disk usage across local nodes.</p>
+            <p><strong>Process Table:</strong> Inspects active background processes and allows safe termination (Kill) of runaway tasks.</p>
+        `
+    },
+    agent: {
+        title: "Agent Loop Guide",
+        content: `
+            <p><strong>Overview:</strong> Autonomous execution loop visualizer and instruction dispatcher.</p>
+            <p><strong>Task Steps:</strong> Tracks the cycle of research, planning, TDD verification, review, and gated commit.</p>
+            <p><strong>Ollama Synthesis:</strong> Test local model prompts and command execution directly against your hardware.</p>
+        `
+    },
+    llm: {
+        title: "LLM Mode & KV Cache Guide",
+        content: `
+            <p><strong>Overview:</strong> Memory bandwidth calculator and inference tuning.</p>
+            <p><strong>KV Cache Memory Calculator:</strong> Computes VRAM requirements based on layers, attention heads, head dimension, context length, and precision.</p>
+        `
+    }
+};
+
+function showPageGuide(pageKey) {
+    const guide = pageGuides[pageKey] || { title: "Command Center Guide", content: "<p>Explore features across tabs.</p>" };
+    document.getElementById('pageGuideTitle').textContent = guide.title;
+    document.getElementById('pageGuideBody').innerHTML = guide.content;
+    const modal = document.getElementById('pageGuideModal');
+    modal.style.display = 'flex';
+    modal.classList.remove('hidden');
+    lucide.createIcons();
+}
+
+function closePageGuide() {
+    const modal = document.getElementById('pageGuideModal');
+    modal.style.display = 'none';
+    modal.classList.add('hidden');
+}
 
 // === STATS ===
 setInterval(() => {
