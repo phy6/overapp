@@ -2241,12 +2241,14 @@ setInterval(() => {
 // === INIT ===
 lucide.createIcons();
 refreshSystem();
+refreshProjectGraph();
 setInterval(() => {
     if (!isPolling) return;
     refreshSystem();
+    refreshProjectGraph();
 }, 20000);
 connectSSE();
-console.log('OverApp initialized. Click tabs to load data. No auto-start.');
+console.log('OverApp initialized. Auto-refreshing system & projects.');
 </script>
 </body>
 </html>
