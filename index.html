@@ -81,31 +81,35 @@
  <div id="newProjectModal" class="fixed inset-0 z-50 hidden items-center justify-center" style="display:none;">
      <div class="modal-content bg-slate-900 border border-slate-700 rounded-xl p-6 max-w-lg w-full mx-4 shadow-2xl max-h-[80vh] overflow-y-auto">
          <div class="flex items-center justify-between mb-4">
-             <h3 class="text-xl font-bold text-slate-100">New Project</h3>
+             <h3 class="text-xl font-bold text-slate-100 flex items-center gap-2"><i data-lucide="folder-plus" class="w-5 h-5 text-purple-400"></i> Seed New Project</h3>
              <button onclick="closeNewProjectModal()" class="p-1 hover:bg-slate-800 rounded-lg transition-colors"><i data-lucide="x" class="w-5 h-5 text-slate-400"></i></button>
          </div>
          <div class="space-y-3 text-sm">
              <div>
-                 <label class="text-xs text-slate-400 mb-1 block">Project Name</label>
-                 <input type="text" id="newProjectName" class="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-slate-200 text-sm focus:outline-none focus:border-purple-500" placeholder="my-new-project" />
+                 <label class="text-xs text-slate-400 mb-1 block">Project Folder Name (kebab-case)</label>
+                 <input type="text" id="newProjectName" class="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-slate-200 text-sm focus:outline-none focus:border-purple-500 font-mono" placeholder="my-awesome-app" />
              </div>
              <div>
-                 <label class="text-xs text-slate-400 mb-1 block">Description (optional)</label>
-                 <textarea id="newProjectDesc" class="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-slate-200 text-sm focus:outline-none focus:border-purple-500" rows="3" placeholder="What is this project about?"></textarea>
+                 <label class="text-xs text-slate-400 mb-1 block">Project Display Title (optional)</label>
+                 <input type="text" id="newProjectTitle" class="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-slate-200 text-sm focus:outline-none focus:border-purple-500" placeholder="My Awesome App" />
              </div>
              <div>
-                 <label class="text-xs text-slate-400 mb-1 block">HTML File (optional)</label>
-                 <input type="file" id="newProjectFile" accept=".html,.htm" class="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-slate-200 text-sm" />
-                 <div class="text-xs text-slate-500 mt-1">Upload an HTML file — title and description will be auto-extracted</div>
+                 <label class="text-xs text-slate-400 mb-1 block">Initial Prompt / Description</label>
+                 <textarea id="newProjectPrompt" class="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-slate-200 text-sm focus:outline-none focus:border-purple-500" rows="3" placeholder="What is the objective or prompt for this project?"></textarea>
              </div>
-             <div id="newProjectFilePreview" class="text-xs text-slate-400"></div>
+             <div>
+                 <label class="text-xs text-slate-400 mb-1 block">Seed File (optional — HTML, Markdown, or Text)</label>
+                 <input type="file" id="newProjectFile" accept=".html,.htm,.md,.txt" class="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-slate-200 text-sm" />
+                 <div class="text-xs text-slate-500 mt-1">Upload a seed file to auto-seed CONTEXT.md and WAYFINDER.md</div>
+             </div>
+             <div id="newProjectFilePreview" class="text-xs text-emerald-400 font-mono"></div>
          </div>
          <div class="mt-4 flex gap-2">
-             <button onclick="createProject()" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm transition-colors">Create Project</button>
+             <button onclick="createProject()" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm transition-colors flex items-center gap-1"><i data-lucide="plus" class="w-4 h-4"></i> Seed & Initialize</button>
              <button onclick="closeNewProjectModal()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg text-sm transition-colors">Cancel</button>
          </div>
-</div>
-  </div>
+     </div>
+ </div>
 
   <div id="ideaModal" class="fixed inset-0 z-50 hidden items-center justify-center" style="display:none;">
       <div class="modal-content bg-slate-900 border border-slate-700 rounded-xl p-6 max-w-lg w-full mx-4 shadow-2xl max-h-[80vh] overflow-y-auto">
@@ -1421,9 +1425,11 @@ function goBackToProjects() {
 }
 function showNewProjectModal() {
     document.getElementById('newProjectName').value = '';
-    document.getElementById('newProjectDesc').value = '';
+    document.getElementById('newProjectTitle').value = '';
+    document.getElementById('newProjectPrompt').value = '';
     document.getElementById('newProjectFile').value = '';
     document.getElementById('newProjectFilePreview').textContent = '';
+    document.getElementById('newProjectModal').style.display = 'flex';
     lucide.createIcons();
 }
 
@@ -1435,21 +1441,22 @@ function closeNewProjectModal() {
      const file = e.target.files[0];
      const preview = document.getElementById('newProjectFilePreview');
      if (!file) { preview.textContent = ''; return; }
-     preview.textContent = `Selected: ${file.name} (${(file.size / 1024).toFixed(0)}KB) — title and description will be extracted on submit`;
+     preview.textContent = `Selected: ${file.name} (${(file.size / 1024).toFixed(0)}KB) — ready for seeding`;
  });
 
  function createProject() {
      const name = document.getElementById('newProjectName').value.trim();
-     const desc = document.getElementById('newProjectDesc').value.trim();
+     const title = document.getElementById('newProjectTitle').value.trim();
+     const prompt = document.getElementById('newProjectPrompt').value.trim();
      const file = document.getElementById('newProjectFile').files[0];
-     if (!name) return alert('Project name is required');
+     if (!name) return alert('Project folder name is required');
      if (file) {
          const reader = new FileReader();
          reader.onload = (e) => {
              fetch('/api/projects/from-html', {
                  method: 'POST',
                  headers: { 'Content-Type': 'application/json' },
-                 body: JSON.stringify({ name, description: desc, htmlContent: e.target.result }),
+                 body: JSON.stringify({ name, title, initialPrompt: prompt, htmlContent: e.target.result }),
              }).then(r => r.json()).then(data => {
                  if (data.success) { closeNewProjectModal(); refreshProjectGraph(); }
                  else alert('Failed: ' + data.error);
@@ -1460,7 +1467,7 @@ function closeNewProjectModal() {
          fetch('/api/projects/init', {
              method: 'POST',
              headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify({ name, description: desc }),
+             body: JSON.stringify({ name, title, initialPrompt: prompt, description: prompt }),
          }).then(r => r.json()).then(data => {
              if (data.success) { closeNewProjectModal(); refreshProjectGraph(); }
              else alert('Failed: ' + data.error);

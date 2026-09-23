@@ -186,9 +186,9 @@ app.patch('/api/projects/:name/fog/:index', async (req, res) => {
 
 app.post('/api/projects/init', async (req, res) => {
    try {
-       const { name, description } = req.body;
+       const { name, description, title, initialPrompt } = req.body;
        if (!name) return res.status(400).json({ success: false, error: 'Project name is required' });
-       const result = await generateProjectFiles(name, description);
+       const result = await generateProjectFiles(name, description, title, initialPrompt);
        if (!result.success) return res.status(500).json({ success: false, error: result.error });
        res.json({ success: true, data: result });
    } catch (e) { res.status(500).json({ success: false, error: e.message }); }
@@ -196,15 +196,17 @@ app.post('/api/projects/init', async (req, res) => {
 
 app.post('/api/projects/from-html', async (req, res) => {
     try {
-        const { name, description, htmlContent } = req.body;
+        const { name, description, title, initialPrompt, htmlContent } = req.body;
         if (!name) return res.status(400).json({ success: false, error: 'Project name is required' });
-        let desc = description || '';
-        if (!desc && htmlContent) {
+        let desc = description || initialPrompt || '';
+        let projTitle = title || '';
+        if ((!desc || !projTitle) && htmlContent) {
             const titleMatch = htmlContent.match(/<title>([^<]+)<\/title>/i);
             const metaMatch = htmlContent.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i);
-            desc = titleMatch ? titleMatch[1] : (metaMatch ? metaMatch[1] : '');
+            if (!projTitle && titleMatch) projTitle = titleMatch[1];
+            if (!desc && metaMatch) desc = metaMatch[1];
         }
-        const result = await generateProjectFiles(name, desc);
+        const result = await generateProjectFiles(name, desc, projTitle, initialPrompt || desc);
         if (!result.success) return res.status(500).json({ success: false, error: result.error });
         res.json({ success: true, data: result });
     } catch (e) { res.status(500).json({ success: false, error: e.message }); }
